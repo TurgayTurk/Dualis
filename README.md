@@ -19,7 +19,7 @@ The package includes the source generator; no extra analyzer package is required
 
 ## Quick start
 
-1) Register in DI (the source generator provides `AddDualis`):
+1) Register in DI (the source generator provides `AddDualis`). It auto-registers all core services, discovered handlers, pipeline behaviors, and notification handlers. No further registration or settings required.
 
 ```csharp
 var services = new ServiceCollection();
@@ -106,6 +106,7 @@ services.AddDualis(opts =>
     opts.RegisterDiscoveredCqrsHandlers = false;
     opts.RegisterDiscoveredNotificationHandlers = false;
 
+    // If registration disabled, register explicitly
     opts.Pipelines
         .Register<LoggingBehavior<CreateUser, Guid>>()
         .Register<ValidationBehavior<CreateUser, Guid>>();
