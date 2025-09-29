@@ -1,0 +1,43 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+		<LangVersion>latest</LangVersion>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<!-- Ensure XML docs are included in the NuGet package -->
+		<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.xml</AllowedOutputExtensionsInPackageBuildOutputFolder>
+
+		<!-- NuGet metadata for generator-only package option -->
+		<PackageId>Dualis.SourceGen</PackageId>
+		<Version>0.1.0</Version>
+		<Authors>Turgay Turk</Authors>
+		<Description>Source generator for Dualis mediator: emits fast dispatchers and DI registrations.</Description>
+		<PackageTags>source-generator;mediator;CQRS;pipeline;dotnet;roslyn</PackageTags>
+		<RepositoryUrl>https://github.com/TurgayTurk/Dualis</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/TurgayTurk/Dualis</PackageProjectUrl>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<DebugType>portable</DebugType>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+	</PropertyGroup>
+	
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
+	</ItemGroup>
+
+	<!-- Pack as Analyzer asset -->
+	<ItemGroup>
+		<None Include="bin\$(Configuration)\$(TargetFramework)\SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="bin\$(Configuration)\$(TargetFramework)\SourceGen.xml" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('bin\$(Configuration)\$(TargetFramework)\SourceGen.xml')" />
+	</ItemGroup>
+</Project>

@@ -1,0 +1,57 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>Dualis</AssemblyName>
+    <RootNamespace>Dualis</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+
+    <!-- NuGet package metadata -->
+    <PackageId>Dualis</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Turgay Turk</Authors>
+    <Company></Company>
+    <Description>Mediator-like CQRS + pipeline behaviors + notifications with source generator for minimal overhead.</Description>
+    <PackageTags>mediator;CQRS;pipeline;source-generator;notifications;dotnet</PackageTags>
+    <RepositoryUrl>https://github.com/TurgayTurk/Dualis</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/TurgayTurk/Dualis</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- Pack settings -->
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <DebugType>portable</DebugType>
+
+    <!-- SourceLink & determinism -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+    <!-- Ensure XML docs are included in the NuGet package -->
+    <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.xml</AllowedOutputExtensionsInPackageBuildOutputFolder>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
+  </ItemGroup>
+
+  <!-- Package the source generator as analyzer asset -->
+  <ItemGroup>
+    <None Include="..\SourceGen\bin\$(Configuration)\netstandard2.0\SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="..\SourceGen\bin\$(Configuration)\netstandard2.0\SourceGen.xml" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('..\SourceGen\bin\$(Configuration)\netstandard2.0\SourceGen.xml')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="DependencyInjection\" />
+  </ItemGroup>
+</Project>

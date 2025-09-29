@@ -1,0 +1,23 @@
+# Build artifacts
+**/bin/
+**/obj/
+TestResults/
+BenchmarkDotNet.Artifacts/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Packaging
+*.nupkg
+*.snupkg
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Other
+GeneratedFiles/

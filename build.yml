@@ -1,0 +1,38 @@
+﻿name: Build
+
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - main
+
+env:
+    DOTNET_VERSION: "9.x"
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        
+        defaults:
+            run:
+                working-directory: PDFGenerator/src
+
+        steps:
+            - uses: actions/checkout@v4
+            
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: ${{ env.DOTNET_VERSION }}
+ 
+            - name: Restore
+              run: dotnet restore PDFGenerator.sln
+
+            - name: Build
+              run: dotnet build PDFGenerator.sln --configuration Release --no-restore
+
+            - name: Test
+              run: dotnet test PDFGenerator.sln --configuration Release --no-restore --no-restore --no-build
+
+            - name: Publish
+              run: dotnet publish PDFGenerator.sln --configuration Release --no-restore --no build

@@ -1,0 +1,22 @@
+@Presentation_HostAddress = http://localhost:5120
+
+### Create User
+
+POST {{Presentation_HostAddress}}/create-user
+Accept: application/json
+Content-Type: application/json
+{
+    "Name": "Turgay"
+}
+
+### Get User
+
+GET {{Presentation_HostAddress}}/users/3ac0a121-4955-4b3e-80b4-9b5eaba17fd7
+Accept: application/json
+
+### Get User
+
+DELETE {{Presentation_HostAddress}}/users/3ac0a121-4955-4b3e-80b4-9b5eaba17fd7
+Accept: application/json
+
+###
