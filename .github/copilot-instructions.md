@@ -4,20 +4,76 @@
 - Always follow coding conventions and formatting rules defined in the `.editorconfig` file.
 - Prioritize Blazor components and patterns over Razor Pages or ASP.NET Core MVC.
 - Use modern C# features (currently C# 13.0) and target the latest .NET (currently .NET 9).
-- Organize code by Domain-Driven Design (DDD) and Clean Architecture: separate Domain, Application, Infrastructure, Persistenceand and Presentation layers.
+- Organize code by Domain-Driven Design (DDD) and Clean Architecture: separate Domain, Application, Infrastructure, Persistence, and Presentation layers.
 
-### Rules:
-- **All production code** lives under the `src` folder.
-  - `Domain` → pure domain logic with no external dependencies.
-  - `Application` → CQRS commands, queries, handlers, validators.
-  - `Persistence` → EF Core context, configurations, migrations, repositories.
-  - `Infrastructure` → external services, messaging, background processing.
-  - `Presentation` → Blazor UI and any public API endpoints.
-- **All test projects** live under the `tests` folder.
-  - Names follow `[Project].UnitTests` or `[Project].IntegrationTests`.
-  - Folder structure **mirrors the `src` structure**.
-- The `.github` folder is only for GitHub config files like `copilot-instructions.md`.
-- `Solution Items` contains shared solution-level files.
+## Project Configuration Management
+
+- **Central Package Management:** Use `Directory.Packages.props` at the repository root to centrally manage NuGet package versions for all projects. Avoid specifying package versions in individual `.csproj` files—always update dependencies in the central file.
+- **Centralized MSBuild Configuration:** Use `Directory.Build.props` and/or `Directory.Build.targets` at the solution or repository root to define and share common MSBuild properties, tooling, and targets across all projects. Avoid duplicating build settings in individual project files.
+
+## Coding Style Rules
+
+- **Braces:** Always use brackets `{}` for if conditions and all control flow statements (if, else, for, foreach, while, etc.), even for single-line statements.
+  ```csharp
+  // Correct
+  if (condition)
+  {
+      DoSomething();
+  }
+
+  // Incorrect
+  if (condition)
+      DoSomething();
+  ```
+
+- **Type Declarations:** Prefer explicit types (`int`, `string`, etc.) over `var`, unless the type is obvious (such as a `.ToList()` or `new()` instantiation) or required for anonymous types.
+  ```csharp
+  // Correct
+  int count = 5;
+  var list = items.ToList();
+  var anon = new { Name = "Test", Value = 1 };
+
+  // Incorrect
+  var count = 5;
+  ```
+
+- **File-scoped namespaces:** Use file-scoped namespaces in all classes.
+  ```csharp
+  namespace Dualis.Domain;
+
+  public class Example { }
+  ```
+
+- **Collection Initialization:** Prefer collection initialization using `[item1, item2, ...]` instead of `new[]`.
+  ```csharp
+  // Preferred
+  var items = [item1, item2];
+
+  // Not preferred
+  var items = new[] { item1, item2 };
+  ```
+
+- **Primary Constructors:** Prefer primary constructors over private fields when possible.
+
+- **Remove unused usings:** Always remove unused `using` directives from the top of files.
+
+- **Expression-bodied members:** Use expression body syntax for single-line methods and properties.
+  ```csharp
+  // Preferred
+  public int GetValue() => 42;
+
+  // Not preferred
+  public int GetValue()
+  {
+      return 42;
+  }
+  ```
+
+- **Indentation:** Use 4 spaces for indentation. Do not use tabs.
+
+- **Visibility:** Omit redundant access modifiers (e.g., `private` is default for class members).
+
+- **Trailing Commas:** In multi-line initializers and parameter lists, include trailing commas.
 
 ## Architecture Patterns
 - Follow **CQRS**:  
@@ -61,34 +117,3 @@
 - Use `.HasConversion()` for value objects and enums.
 
 ## Blazor / Presentation Layer
-- Use **partial classes** for `.razor.cs` code-behind files.
-- Group Blazor components **by feature**, not by type.
-- Prefer **dependency injection** for services and repositories.
-
-## C# Coding Preferences (Personal)
-- Always use **explicit types** instead of `var`,  
-  except when the type is **obvious** (e.g., `var user = new User();` or `.ToList()` calls).  
-- Prefer **primary constructors** over private fields.
-- Always use **braces `{}` for all `if` conditions**, even single-line.
-- Prefer **collection initialization** `[item1, item2, ...]` instead of `new [] { ... }`.
-- Use **file-scoped namespaces** instead of block-scoped namespaces.
-- Place **using directives outside** of namespaces.
-
-## Formatting & Style
-- Consistent indentation: **4 spaces**.
-- Avoid regions unless necessary for very large files.
-- Group related properties and methods logically.
-
-## Testing & Validation
-- Use validators for commands (`AddOrEditUserCommandValidator`).
-- Always use **async/await** for asynchronous operations.
-- Unit test domain logic directly at the **aggregate root or entity level**.
-
-## Documentation
-- Use XML comments for public APIs and base classes.
-- Keep documentation concise and relevant.
-
----
-
-**Note:**  
-These conventions apply globally unless explicitly overridden for a specific feature or solution.

@@ -9,7 +9,7 @@
 
     <!-- NuGet package metadata -->
     <PackageId>Dualis</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Authors>Turgay Turk</Authors>
     <Company></Company>
     <Description>Mediator-like CQRS + pipeline behaviors + notifications with source generator for minimal overhead.</Description>
@@ -19,6 +19,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/TurgayTurk/Dualis</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>logo.png</PackageIcon>
 
     <!-- Pack settings -->
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
@@ -47,9 +48,10 @@
     <None Include="..\SourceGen\bin\$(Configuration)\netstandard2.0\SourceGen.xml" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('..\SourceGen\bin\$(Configuration)\netstandard2.0\SourceGen.xml')" />
   </ItemGroup>
 
-  <!-- Include solution README in the package root -->
+  <!-- Include solution README and icon in the package root -->
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="/" />
+    <None Include="..\..\logo.png" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>

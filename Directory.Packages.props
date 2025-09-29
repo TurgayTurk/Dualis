@@ -31,4 +31,8 @@
     <!-- Benchmarks -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.4" />
   </ItemGroup>
+  <!-- Consumer smoke tests: pin Dualis package version -->
+  <ItemGroup>
+    <PackageVersion Include="Dualis" Version="0.1.0" />
+  </ItemGroup>
 </Project>

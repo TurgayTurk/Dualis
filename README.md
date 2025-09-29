@@ -1,3 +1,5 @@
+![Dualis](logo.png)
+
 # Dualis
 
 Fast, lightweight mediator for .NET with CQRS, pipelines, and notifications. Dualis uses a Roslyn source generator to emit the dispatcher and DI registration code at build time, keeping runtime overhead and allocations low while offering a clean, opinionated API.
