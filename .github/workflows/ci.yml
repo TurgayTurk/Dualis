@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Test
+        run: dotnet test -c Release --no-build --verbosity normal
+
+      - name: Pack SourceGen (Analyzer)
+        run: dotnet pack src/SourceGen/SourceGen.csproj -c Release -o ./artifacts --no-build
+
+      - name: Build generator for packaging
+        run: dotnet build src/SourceGen/SourceGen.csproj -c Release --no-restore
+
+      - name: Pack Dualis (includes analyzer assets)
+        run: dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts --no-build
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-artifacts
+          path: artifacts/*.nupkg
+
+  publish-nuget:
+    runs-on: windows-latest
+    needs: build-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Build generator for packaging
+        run: dotnet build src/SourceGen/SourceGen.csproj -c Release --no-restore
+
+      - name: Pack
+        run: |
+          dotnet pack src/SourceGen/SourceGen.csproj -c Release -o ./artifacts --no-build
+          dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts --no-build
+
+      - name: Push to NuGet (Dualis)
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          for %F in (artifacts\*.nupkg) do dotnet nuget push "%F" --api-key %NUGET_API_KEY% --source https://api.nuget.org/v3/index.json --skip-duplicate
