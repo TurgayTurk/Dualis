@@ -25,7 +25,7 @@ The package includes the source generator; no extra analyzer package is required
 var services = new ServiceCollection();
 services.AddDualis();
 var sp = services.BuildServiceProvider();
-var mediator = sp.GetRequiredService<IDualizor>();
+var dualizor = sp.GetRequiredService<IDualizor>();
 ```
 
 2) Define a query and handler:
@@ -43,8 +43,10 @@ public sealed class GetUserHandler : IQueryHandler<GetUser, UserDto>
 3) Send the query:
 
 ```csharp
-UserDto user = await mediator.QueryAsync(new GetUser(id));
+UserDto user = await dualizor.SendAsync(new GetUser(id));
 ```
+
+Note: `IDualizor` implements both `ISender` (commands/queries) and `IPublisher` (notifications). You may inject `ISender` or `IPublisher` instead of `IDualizor` if you only need a subset.
 
 ## Minimal API example
 
@@ -61,7 +63,7 @@ var app = builder.Build();
 
 app.MapPost("/create-user", async (CreateUser cmd, IDualizor dualizor, CancellationToken ct) =>
 {
-    Guid id = await dualizor.CommandAsync(cmd, ct);
+    Guid id = await dualizor.SendAsync(cmd, ct);
     return Results.Ok(new { id });
 });
 
@@ -169,7 +171,7 @@ public sealed class UserCreatedHandler : INotificationHandler<UserCreated>
 Publish from anywhere you have `IPublisher`/`IDualizor`:
 
 ```csharp
-await mediator.PublishAsync(new UserCreated(id));
+await dualizor.PublishAsync(new UserCreated(id));
 ```
 
 Choose failure behavior:
@@ -179,6 +181,51 @@ Choose failure behavior:
 - `StopOnFirstException` — stop immediately on first failure (sequential)
 
 Choose publisher implementation via `NotificationPublisherFactory`.
+
+## Logging
+
+Dualis uses `Microsoft.Extensions.Logging`.
+
+- When `NotificationFailureBehavior` is set to `ContinueAndLog`, publishers log handler failures via `ILogger` and continue.
+- Enable logging via your host builder; no special setup is required.
+- To use logger-enabled publishers, resolve loggers from DI in the `NotificationPublisherFactory`:
+
+```csharp
+services.AddDualis(opts =>
+{
+    opts.NotificationFailureBehavior = NotificationFailureBehavior.ContinueAndLog;
+    opts.NotificationPublisherFactory = sp =>
+        new ParallelWhenAllNotificationPublisher(
+            sp.GetRequiredService<ILogger<ParallelWhenAllNotificationPublisher>>(),
+            sp.GetRequiredService<ILoggerFactory>());
+});
+```
+
+## Caching
+
+Runtime internals:
+
+- Dualis caches discovered pipeline behaviors as arrays per handler shape to avoid repeated DI enumeration.
+- A zero?behavior fast path calls the handler directly to minimize overhead.
+
+Your code:
+
+- Use `IMemoryCache` or `IDistributedCache` in handlers/behaviors like any DI service.
+
+```csharp
+public sealed class GetUserHandler(IMemoryCache cache) : IQueryHandler<GetUser, UserDto>
+{
+    public Task<UserDto> HandleAsync(GetUser query, CancellationToken ct = default)
+    {
+        if (!cache.TryGetValue(query.Id, out UserDto value))
+        {
+            value = new UserDto(query.Id, "Alice");
+            cache.Set(query.Id, value, TimeSpan.FromMinutes(5));
+        }
+        return Task.FromResult(value);
+    }
+}
+```
 
 ## Source generator
 

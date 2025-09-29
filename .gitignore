@@ -21,3 +21,6 @@ Thumbs.db
 
 # Other
 GeneratedFiles/
+
+# Exclude local Presentation project entirely from version control
+src/Presentation/
