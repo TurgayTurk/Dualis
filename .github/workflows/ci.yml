@@ -6,6 +6,7 @@ on:
     tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build-test:
@@ -81,7 +82,10 @@ jobs:
         run: dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts --no-build
 
       - name: Push to NuGet (Dualis)
+        shell: pwsh
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
-          for %F in (artifacts\*.nupkg) do dotnet nuget push "%F" --api-key %NUGET_API_KEY% --source https://api.nuget.org/v3/index.json --skip-duplicate
+          Get-ChildItem -Path artifacts -Filter *.nupkg | ForEach-Object {
+            dotnet nuget push $_.FullName --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
+          }
