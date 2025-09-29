@@ -20,19 +20,28 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Restore
-        run: dotnet restore
+        shell: pwsh
+        run: |
+          dotnet restore src/SourceGen/SourceGen.csproj
+          dotnet restore src/Dualis/Dualis.csproj
+          dotnet restore tests/SourceGen.Tests/SourceGen.Tests.csproj
+          dotnet restore tests/Dualis.UnitTests/Dualis.UnitTests.csproj
+          dotnet restore tests/Dualis.Benchmarks/Dualis.Benchmarks.csproj
 
       - name: Build
-        run: dotnet build -c Release --no-restore
+        shell: pwsh
+        run: |
+          dotnet build src/SourceGen/SourceGen.csproj -c Release --no-restore
+          dotnet build src/Dualis/Dualis.csproj -c Release --no-restore
+          dotnet build tests/SourceGen.Tests/SourceGen.Tests.csproj -c Release --no-restore
+          dotnet build tests/Dualis.UnitTests/Dualis.UnitTests.csproj -c Release --no-restore
+          dotnet build tests/Dualis.Benchmarks/Dualis.Benchmarks.csproj -c Release --no-restore
 
       - name: Test
-        run: dotnet test -c Release --no-build --verbosity normal
-
-      - name: Pack SourceGen (Analyzer)
-        run: dotnet pack src/SourceGen/SourceGen.csproj -c Release -o ./artifacts --no-build
-
-      - name: Build generator for packaging
-        run: dotnet build src/SourceGen/SourceGen.csproj -c Release --no-restore
+        shell: pwsh
+        run: |
+          dotnet test tests/SourceGen.Tests/SourceGen.Tests.csproj -c Release --no-build --verbosity normal
+          dotnet test tests/Dualis.UnitTests/Dualis.UnitTests.csproj -c Release --no-build --verbosity normal
 
       - name: Pack Dualis (includes analyzer assets)
         run: dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts --no-build
@@ -57,18 +66,19 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Restore
-        run: dotnet restore
+        shell: pwsh
+        run: |
+          dotnet restore src/SourceGen/SourceGen.csproj
+          dotnet restore src/Dualis/Dualis.csproj
 
       - name: Build
-        run: dotnet build -c Release --no-restore
-
-      - name: Build generator for packaging
-        run: dotnet build src/SourceGen/SourceGen.csproj -c Release --no-restore
-
-      - name: Pack
+        shell: pwsh
         run: |
-          dotnet pack src/SourceGen/SourceGen.csproj -c Release -o ./artifacts --no-build
-          dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts --no-build
+          dotnet build src/SourceGen/SourceGen.csproj -c Release --no-restore
+          dotnet build src/Dualis/Dualis.csproj -c Release --no-restore
+
+      - name: Pack Dualis
+        run: dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts --no-build
 
       - name: Push to NuGet (Dualis)
         env:
