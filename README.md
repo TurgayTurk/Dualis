@@ -112,7 +112,7 @@ services.AddDualis(opts =>
         .Register<ValidationBehavior<CreateUser, Guid>>();
 
     opts.CQRS.Register<CreateUserHandler>();
-    opts.Notifications.Register<UserCreatedHandler>();
+    opts.Notifications.Register<UserCreatedEventHandler>();
 });
 ```
 
@@ -124,11 +124,12 @@ Three forms are supported:
 - Void request: `IPipelineBehavior<TRequest>`
 - Unified: `IPipelineBehaviour<TMessage, TResponse>` (for both requests and notifications; use `Unit` for void)
 
-Behaviors are executed in registration order (outer ? inner). You can annotate behaviors with custom ordering attributes and then register in the desired sequence.
+Behaviors are executed in registration order (outer ? inner). You can also annotate behaviors with `PipelineOrderAttribute` to control ordering when auto-registered. Lower values run earlier.
 
 Example request/response behavior:
 
 ```csharp
+[PipelineOrder(-10)]
 public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
@@ -137,6 +138,16 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
         var result = await next(ct);
         // after
         return result;
+    }
+}
+
+[PipelineOrder(5)]
+public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+{
+    public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
+    {
+        // validate here
+        return await next(ct);
     }
 }
 ```
@@ -154,6 +165,10 @@ public sealed class AuditBehavior<TRequest> : IPipelineBehavior<TRequest>
     }
 }
 ```
+
+Notes:
+- Auto-registration honors `PipelineOrderAttribute` (ascending order), then sorts by type name to make ordering deterministic.
+- When you manually register behaviors (as above), registration order applies regardless of the attribute.
 
 ## Notifications
 
