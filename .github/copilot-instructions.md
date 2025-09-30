@@ -1,4 +1,4 @@
-﻿# Copilot Instructions: Team Coding Preferences
+# Copilot Instructions: Team Coding Preferences
 
 ## General Principles
 - Always follow coding conventions and formatting rules defined in the `.editorconfig` file.
@@ -8,8 +8,8 @@
 
 ## Project Configuration Management
 
-- **Central Package Management:** Use `Directory.Packages.props` at the repository root to centrally manage NuGet package versions for all projects. Avoid specifying package versions in individual `.csproj` files—always update dependencies in the central file.
-- **Centralized MSBuild Configuration:** Use `Directory.Build.props` and/or `Directory.Build.targets` at the solution or repository root to define and share common MSBuild properties, tooling, and targets across all projects. Avoid duplicating build settings in individual project files.
+- **Central Package Management:** Use `Directory.Packages.props` at the repository root to centrally manage NuGet package versions for all projects. Avoid specifying package versions in individual[...]  
+- **Centralized MSBuild Configuration:** Use `Directory.Build.props` and/or `Directory.Build.targets` at the solution or repository root to define and share common MSBuild properties, tooling, and[...]  
 
 ## Coding Style Rules
 
@@ -124,7 +124,7 @@
 ## Naming Conventions
 - **PascalCase** for classes, methods, and properties.
 - **camelCase** for local variables and parameters.
-- Pluralize table names in EF Core (e.g., `"Users"`).
+- Pluralize table names in EF Core (e.g., "Users").
 - Prefix private/internal EF configuration classes with `internal sealed`.
 
 ## Entity Framework Core
