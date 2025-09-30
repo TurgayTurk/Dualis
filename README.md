@@ -1,4 +1,4 @@
-![Dualis](logo.png)
+![Dualis](./logo.png)
 
 # Dualis
 

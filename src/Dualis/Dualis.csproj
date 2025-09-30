@@ -9,7 +9,7 @@
 
     <!-- NuGet package metadata -->
     <PackageId>Dualis</PackageId>
-    <Version>0.1.1</Version>
+    <Version>0.1.2</Version>
     <Authors>Turgay Turk</Authors>
     <Company></Company>
     <Description>Mediator-like CQRS + pipeline behaviors + notifications with source generator for minimal overhead.</Description>
