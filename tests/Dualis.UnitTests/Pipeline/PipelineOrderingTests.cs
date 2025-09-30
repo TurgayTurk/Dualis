@@ -6,12 +6,18 @@ using Xunit;
 
 namespace Dualis.UnitTests.Pipeline;
 
+/// <summary>
+/// Verifies that pipeline behaviors respect the configured ordering attribute when executing around a handler.
+/// </summary>
 public sealed class PipelineOrderingTests
 {
     internal sealed record Cmd(int Id) : ICommand<string>;
 
     internal sealed class CmdHandler(ExecutionLog log) : ICommandHandler<Cmd, string>
     {
+        /// <summary>
+        /// Records a handler marker and returns a formatted result containing the command Id.
+        /// </summary>
         public Task<string> HandleAsync(Cmd command, CancellationToken cancellationToken = default)
         {
             log.Add("H");
@@ -19,6 +25,14 @@ public sealed class PipelineOrderingTests
         }
     }
 
+    /// <summary>
+    /// Ensures request behaviors execute in ascending <see cref="PipelineOrderAttribute"/> order around the handler.
+    /// </summary>
+    /// <remarks>
+    /// Arrange: Register <see cref="OrderedBehaviorA{TReq, TRes}"/> and <see cref="OrderedBehaviorB{TReq, TRes}"/> and a simple handler.
+    /// Act: Send the <see cref="Cmd"/> through <see cref="IDualizor"/>.
+    /// Assert: The response is correct and the execution log reflects the expected order.
+    /// </remarks>
     [Fact]
     public async Task RequestBehaviors_run_in_configured_order()
     {

@@ -37,6 +37,6 @@
   </ItemGroup>
   <!-- Consumer smoke tests: pin Dualis package version -->
   <ItemGroup>
-    <PackageVersion Include="Dualis" Version="0.1.2" />
+    <PackageVersion Include="Dualis" Version="0.1.3" />
   </ItemGroup>
 </Project>

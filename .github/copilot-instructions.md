@@ -75,6 +75,27 @@
 
 - **Trailing Commas:** In multi-line initializers and parameter lists, include trailing commas.
 
+- **Attribute Loop Simplification:**  
+  When searching for specific attributes, prefer LINQ (`Select`, `Any`) over manual `foreach` loops for clarity and conciseness.
+  ```csharp
+  // Not preferred
+  foreach (AttributeData attr in comp.Assembly.GetAttributes())
+  {
+      string? name = attr.AttributeClass?.Name;
+      if (name == "EnableDualisGenerationAttribute" || name == "EnableDualisGeneration")
+      {
+          return true;
+      }
+  }
+  return false;
+
+  // Preferred
+  return comp.Assembly.GetAttributes()
+      .Select(attr => attr.AttributeClass)
+      .Any(cls => cls?.Name == "EnableDualisGenerationAttribute" || 
+           cls?.Name == "EnableDualisGeneration");
+  ```
+
 ## Architecture Patterns
 - Follow **CQRS**:  
   - **Commands** mutate state and **Queries** are strictly read-only.  

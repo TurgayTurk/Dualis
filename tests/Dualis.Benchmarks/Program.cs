@@ -8,8 +8,14 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Dualis.Benchmarks;
 
+/// <summary>
+/// Entry point for running the BenchmarkDotNet suites in this project.
+/// </summary>
 public static class Program
 {
+    /// <summary>
+    /// Runs <see cref="DispatcherBenchmarks"/> with a configuration that allows Debug runs locally.
+    /// </summary>
     public static void Main(string[] args)
     {
 #if DEBUG
@@ -22,14 +28,23 @@ public static class Program
     }
 }
 
+/// <summary>
+/// Measures the overhead of Dualis dispatch with varying numbers of pipeline behaviors for queries and commands.
+/// </summary>
 [MemoryDiagnoser]
 public class DispatcherBenchmarks
 {
     private IDualizor mediator = default!;
 
+    /// <summary>
+    /// Number of behaviors to register for each pipeline. Values are expanded in <see cref="Setup"/>.
+    /// </summary>
     [Params(0, 1, 2, 3)]
     public int BehaviorCount { get; set; }
 
+    /// <summary>
+    /// Arrange: Build a service provider, register Dualis, handlers, and up to three behaviors per pipeline based on <see cref="BehaviorCount"/>.
+    /// </summary>
     [GlobalSetup]
     public void Setup()
     {
@@ -74,27 +89,50 @@ public class DispatcherBenchmarks
         mediator = provider.GetRequiredService<IDualizor>();
     }
 
+    /// <summary>
+    /// Act: Executes a query through the mediator with the configured number of behaviors.
+    /// Assert: Not applicable (benchmark measures throughput and allocation).
+    /// </summary>
     [Benchmark]
     public async Task QueryWithBehaviors() => await mediator.QueryAsync(new Ping("hi"));
 
+    /// <summary>
+    /// Act: Executes a command through the mediator with the configured number of behaviors.
+    /// Assert: Not applicable (benchmark measures throughput and allocation).
+    /// </summary>
     [Benchmark]
     public async Task CommandVoidWithBehaviors() => await mediator.CommandAsync(new Pong("x"));
 }
 
+/// <summary>
+/// Simple query used by benchmarks.
+/// </summary>
 public sealed record Ping(string Text) : IQuery<string>;
 
+/// <summary>
+/// Query handler that returns the query text.
+/// </summary>
 public sealed class PingHandler : IQueryHandler<Ping, string>
 {
     public Task<string> HandleAsync(Ping query, CancellationToken cancellationToken = default) => Task.FromResult(query.Text);
 }
 
+/// <summary>
+/// Simple command used by benchmarks.
+/// </summary>
 public sealed record Pong(string Text) : ICommand;
 
+/// <summary>
+/// Command handler that completes successfully without producing a result.
+/// </summary>
 public sealed class PongHandler : ICommandHandler<Pong>
 {
     public Task HandleAsync(Pong command, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
+/// <summary>
+/// No-op behavior used to simulate logging work in the pipeline.
+/// </summary>
 public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
@@ -104,26 +142,41 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
     }
 }
 
+/// <summary>
+/// No-op behavior used to simulate validation work in the pipeline.
+/// </summary>
 public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken) => await next(cancellationToken);
 }
 
+/// <summary>
+/// No-op behavior used to simulate auditing work in the pipeline.
+/// </summary>
 public sealed class AuditBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken) => await next(cancellationToken);
 }
 
+/// <summary>
+/// No-op behavior used for command pipelines.
+/// </summary>
 public sealed class VoidBehavior<TRequest> : IPipelineBehavior<TRequest>
 {
     public async Task Handle(TRequest request, RequestHandlerDelegate next, CancellationToken cancellationToken) => await next(cancellationToken);
 }
 
+/// <summary>
+/// No-op behavior used for command pipelines.
+/// </summary>
 public sealed class VoidBehavior2<TRequest> : IPipelineBehavior<TRequest>
 {
     public async Task Handle(TRequest request, RequestHandlerDelegate next, CancellationToken cancellationToken) => await next(cancellationToken);
 }
 
+/// <summary>
+/// No-op behavior used for command pipelines.
+/// </summary>
 public sealed class VoidBehavior3<TRequest> : IPipelineBehavior<TRequest>
 {
     public async Task Handle(TRequest request, RequestHandlerDelegate next, CancellationToken cancellationToken) => await next(cancellationToken);

@@ -7,10 +7,21 @@ using Xunit;
 
 namespace Dualis.UnitTests.Notifications;
 
+/// <summary>
+/// Tests for <see cref="ParallelWhenAllNotificationPublisher"/> covering concurrency limits and failure policies.
+/// </summary>
 public sealed class ParallelWhenAllNotificationPublisherTests
 {
     private sealed record TestNote(int Value) : INotification;
 
+    /// <summary>
+    /// Validates that the publisher respects <see cref="NotificationPublishContext.MaxDegreeOfParallelism"/>.
+    /// </summary>
+    /// <remarks>
+    /// Arrange: Create 16 handlers that record concurrent activity and set DOP=2.
+    /// Act: Publish a note and capture the maximum observed concurrency.
+    /// Assert: The maximum does not exceed the configured DOP.
+    /// </remarks>
     [Fact]
     public async Task Honors_MaxDegreeOfParallelism()
     {
@@ -49,6 +60,14 @@ public sealed class ParallelWhenAllNotificationPublisherTests
         maxObserved.Should().BeLessOrEqualTo(dop, "publisher should constrain concurrency to MaxDegreeOfParallelism");
     }
 
+    /// <summary>
+    /// Ensures <c>ContinueAndAggregate</c> aggregates all failures and throws a single <see cref="AggregateException"/>.
+    /// </summary>
+    /// <remarks>
+    /// Arrange: Two failing handlers and one successful handler.
+    /// Act: Publish with <c>ContinueAndAggregate</c>.
+    /// Assert: Thrown exception contains both inner exceptions.
+    /// </remarks>
     [Fact]
     public async Task ContinueAndAggregate_aggregates_all_failures()
     {
@@ -69,6 +88,14 @@ public sealed class ParallelWhenAllNotificationPublisherTests
         ex.Which.InnerExceptions.Select(e => e.Message).Should().Contain(["A", "B"]);
     }
 
+    /// <summary>
+    /// Verifies <c>ContinueAndLog</c> logs failures and does not throw.
+    /// </summary>
+    /// <remarks>
+    /// Arrange: Two failing handlers and a test logger to capture entries.
+    /// Act: Publish with <c>ContinueAndLog</c>.
+    /// Assert: Exactly two error log entries are recorded.
+    /// </remarks>
     [Fact]
     public async Task ContinueAndLog_logs_and_swallows()
     {
@@ -92,6 +119,14 @@ public sealed class ParallelWhenAllNotificationPublisherTests
         provider.Entries.Count(e => e.Level >= LogLevel.Error && e.Exception is not null).Should().Be(2);
     }
 
+    /// <summary>
+    /// Ensures <c>StopOnFirstException</c> falls back to sequential execution and stops at the first failure.
+    /// </summary>
+    /// <remarks>
+    /// Arrange: Three handlers where the second throws.
+    /// Act: Publish with <c>StopOnFirstException</c>.
+    /// Assert: An exception is thrown and only the first two handlers are invoked.
+    /// </remarks>
     [Fact]
     public async Task StopOnFirstException_runs_sequentially_and_stops_early()
     {

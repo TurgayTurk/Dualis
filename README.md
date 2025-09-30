@@ -1,4 +1,4 @@
-![Dualis](logo.png)
+![](https://raw.githubusercontent.com/TurgayTurk/Dualis/main/logo.png)
 
 # Dualis
 
@@ -76,12 +76,12 @@ await app.RunAsync();
 
 Use the generated `AddDualis(IServiceCollection, Action<DualizorOptions>?)` to configure behavior.
 
-- `NotificationPublisherFactory` — swap the publisher implementation
+- `NotificationPublisherFactory` – swap the publisher implementation
   - Default: `SequentialNotificationPublisher`
   - Alternatives: `ParallelWhenAllNotificationPublisher`, `ChannelNotificationPublisher`
-- `NotificationFailureBehavior` — how to handle handler failures when publishing
+- `NotificationFailureBehavior` – how to handle handler failures when publishing
   - `ContinueAndAggregate`, `ContinueAndLog`, `StopOnFirstException`
-- `MaxPublishDegreeOfParallelism` — optional max DOP for publishers that support parallelism
+- `MaxPublishDegreeOfParallelism` – optional max DOP for publishers that support parallelism
 - Auto-registration flags
   - `RegisterDiscoveredBehaviors` (default true)
   - `RegisterDiscoveredCqrsHandlers` (default true)
@@ -121,7 +121,7 @@ services.AddDualis(opts =>
 });
 ```
 
-Note: For manual registration from another assembly (e.g., Program.cs in Presentation), handler/behavior classes must be accessible. Make them public, or perform registration within the same assembly (e.g., via a public AddApplication extension) or use InternalsVisibleTo.
+Note: For manual registration from another assembly (e.g., Program.cs in Presentation), handler/behavior classes must be accessible. Make them public, or perform registration within the same assembly (e.g., via a public AddApplication extension) or use `InternalsVisibleTo`.
 
 ## Pipelines
 
@@ -199,9 +199,9 @@ await dualizor.PublishAsync(new UserCreatedEvent(id));
 
 Choose failure behavior:
 
-- `ContinueAndAggregate` — run all handlers, throw `AggregateException` of failures
-- `ContinueAndLog` — log and swallow failures
-- `StopOnFirstException` — stop immediately on first failure (sequential)
+- `ContinueAndAggregate` – run all handlers, throw `AggregateException` of failures
+- `ContinueAndLog` – log and swallow failures
+- `StopOnFirstException` – stop immediately on first failure (sequential)
 
 Choose publisher implementation via `NotificationPublisherFactory`.
 
@@ -258,6 +258,38 @@ Dualis ships a source generator that:
 - emits the `AddDualis` DI extension that auto-registers discovered handlers and behaviors (unless disabled by options)
 
 This keeps the runtime lean and avoids reflection-based dispatch.
+
+### How it works
+
+- At compile time, the generator scans the compilation for implementations of `ICommandHandler<>`, `IQueryHandler<>`, `INotificationHandler<>`, and pipeline interfaces.
+- It generates a sealed `Dualis.Dualizor` class with direct, type-safe dispatch (no reflection) and minimal allocations, plus the `AddDualis` extension that wires everything into DI.
+- The generator includes a safety guard: if a `Dualis.Dualizor` already exists in the compilation or references (e.g., a shared kernel), generation is skipped to avoid duplicate-type conflicts.
+
+### When it runs (host-only)
+
+- The analyzer is delivered via `buildTransitive` with an MSBuild gate. It auto-enables only for host projects (`OutputType` is `Exe`/`WinExe`) and is off for class libraries and test projects.
+- This means Domain/Application/Infrastructure libraries won’t run the generator; the composition root (API/Web/Worker) does.
+
+Advanced override (optional):
+
+- To force-enable in a specific project, set `DualisEnableGenerator` to `true` in that project file.
+- To force-disable in a host project, set `DualisEnableGenerator` to `false`.
+
+```xml
+<PropertyGroup>
+  <DualisEnableGenerator>true</DualisEnableGenerator>
+</PropertyGroup>
+```
+
+### DDD/Clean Architecture guidance
+
+- Reference Dualis everywhere you need the abstractions; the generator won’t run in libraries due to host-only gating.
+- Keep `services.AddDualis(...)` in the composition root. No other layers need to register anything.
+
+### Troubleshooting
+
+- Duplicate type ‘Dualizor’: another assembly defines `Dualis.Dualizor`. The generator detects this and skips emitting its own mediator. Ensure your DI registers the existing mediator to `IDualizor`/`ISender`/`IPublisher`.
+- Generator didn’t run: ensure you’re building a host project (Exe/WinExe) or set `DualisEnableGenerator` to `true`. Clean and rebuild to clear stale analyzer artifacts.
 
 ## Benchmarks
 

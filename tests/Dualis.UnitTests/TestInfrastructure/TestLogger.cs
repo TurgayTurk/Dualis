@@ -3,16 +3,27 @@ using Microsoft.Extensions.Logging;
 
 namespace Dualis.UnitTests.TestInfrastructure;
 
+/// <summary>
+/// Lightweight <see cref="ILoggerProvider"/> and logger used to capture log entries in tests.
+/// </summary>
 public sealed class TestLoggerProvider : ILoggerProvider
 {
     private readonly ConcurrentBag<LogEntry> entries = [];
 
+    /// <summary>
+    /// Gets the captured log entries.
+    /// </summary>
     public IReadOnlyCollection<LogEntry> Entries => entries;
 
+    /// <inheritdoc />
     public ILogger CreateLogger(string categoryName) => new TestLogger(categoryName, entries);
 
+    /// <inheritdoc />
     public void Dispose() { }
 
+    /// <summary>
+    /// Captured log entry.
+    /// </summary>
     public sealed record LogEntry(string Category, LogLevel Level, EventId EventId, Exception? Exception, string Message);
 
     private sealed class TestLogger(string category, ConcurrentBag<LogEntry> sink) : ILogger

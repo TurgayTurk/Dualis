@@ -7,10 +7,21 @@ using Xunit;
 
 namespace Dualis.UnitTests.Notifications;
 
+/// <summary>
+/// Tests for <see cref="ChannelNotificationPublisher"/> covering fan-out behavior and failure handling policies.
+/// </summary>
 public sealed class ChannelNotificationPublisherTests
 {
     private sealed record TestNote(int Value) : INotification;
 
+    /// <summary>
+    /// Verifies that all registered handlers are invoked once for a published notification.
+    /// </summary>
+    /// <remarks>
+    /// Arrange: Create a publisher and three delegate handlers that increment a shared counter.
+    /// Act: Publish a single <see cref="TestNote"/> with the <c>ContinueAndAggregate</c> policy.
+    /// Assert: The counter equals the number of handlers (3).
+    /// </remarks>
     [Fact]
     public async Task Publishes_to_all_handlers()
     {
@@ -37,6 +48,14 @@ public sealed class ChannelNotificationPublisherTests
         calls.Should().Be(3);
     }
 
+    /// <summary>
+    /// Ensures the <c>ContinueAndAggregate</c> policy throws an <see cref="AggregateException"/> with all inner exceptions.
+    /// </summary>
+    /// <remarks>
+    /// Arrange: Use two failing handlers and one successful handler.
+    /// Act: Publish a notification under the <c>ContinueAndAggregate</c> policy.
+    /// Assert: An <see cref="AggregateException"/> is thrown that contains both failures.
+    /// </remarks>
     [Fact]
     public async Task ContinueAndAggregate_throws_with_all_inner_exceptions()
     {
@@ -62,6 +81,14 @@ public sealed class ChannelNotificationPublisherTests
         ex.Which.InnerExceptions.Should().HaveCount(2);
     }
 
+    /// <summary>
+    /// Verifies <c>ContinueAndLog</c> logs failures and does not throw, allowing subsequent handlers to continue.
+    /// </summary>
+    /// <remarks>
+    /// Arrange: Two failing handlers and a <see cref="TestLoggerProvider"/> to capture logs.
+    /// Act: Publish a notification with <c>ContinueAndLog</c>.
+    /// Assert: Two error log entries are recorded, and no exception bubbles up.
+    /// </remarks>
     [Fact]
     public async Task ContinueAndLog_logs_and_swallows()
     {
