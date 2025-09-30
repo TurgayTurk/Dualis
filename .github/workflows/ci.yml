@@ -45,7 +45,7 @@ jobs:
           dotnet test tests/Dualis.UnitTests/Dualis.UnitTests.csproj -c Release --no-build --verbosity normal
 
       - name: Pack Dualis (includes analyzer assets)
-        run: dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts --no-build
+        run: dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -79,7 +79,7 @@ jobs:
           dotnet build src/Dualis/Dualis.csproj -c Release --no-restore
 
       - name: Pack Dualis
-        run: dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts --no-build
+        run: dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts
 
       - name: Push to NuGet (Dualis)
         shell: pwsh

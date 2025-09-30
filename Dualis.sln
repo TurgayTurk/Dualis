@@ -33,6 +33,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dualis.UnitTests", "tests\D
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dualis.PackageSmokeTests", "tests\Dualis.PackageSmokeTests\Dualis.PackageSmokeTests.csproj", "{C7D78884-08AB-BDE7-83D6-79B723FF834F}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{60827823-7536-4C0B-AD56-C6B37275D83A}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\ci.yml = .github\workflows\ci.yml
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -136,6 +141,7 @@ Global
 		{FBC5FFFC-2183-432B-87B9-21C6650FF756} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{44CC9837-8DD5-0670-6EB2-6484C7CA14E3} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{C7D78884-08AB-BDE7-83D6-79B723FF834F} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{60827823-7536-4C0B-AD56-C6B37275D83A} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {8DB4E09F-207D-47AA-8B52-033B61A6933E}

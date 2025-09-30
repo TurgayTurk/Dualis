@@ -9,7 +9,7 @@
 
     <!-- NuGet package metadata -->
     <PackageId>Dualis</PackageId>
-    <Version>0.1.4.1</Version>
+    <Version>0.1.4</Version>
     <Authors>Turgay Turk</Authors>
     <Company></Company>
     <Description>Mediator-like CQRS + pipeline behaviors + notifications with source generator for minimal overhead.</Description>
@@ -42,10 +42,11 @@
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
   </ItemGroup>
 
-  <!-- Package the source generator via buildTransitive (auto-enabled by props in host projects) -->
+  <!-- Ship the source generator as an analyzer; NuGet will place it under analyzers/dotnet/cs -->
   <ItemGroup>
-    <None Include="..\SourceGen\bin\$(Configuration)\netstandard2.0\SourceGen.dll" Pack="true" PackagePath="buildTransitive/SourceGen" Visible="false" />
-    <None Include="buildTransitive\Dualis.SourceGen.props" Pack="true" PackagePath="buildTransitive" Visible="false" />
+    <ProjectReference Include="..\SourceGen\SourceGen.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!-- Include solution README and icon in the package root -->
@@ -56,6 +57,5 @@
 
   <ItemGroup>
     <Folder Include="DependencyInjection\" />
-    <Folder Include="buildTransitive\" />
   </ItemGroup>
 </Project>
