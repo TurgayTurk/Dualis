@@ -1,4 +1,4 @@
-﻿# Copilot Instructions: Team Coding Preferences
+# Copilot Instructions: Team Coding Preferences
 
 ## General Principles
 - Always follow coding conventions and formatting rules defined in the `.editorconfig` file.
@@ -8,8 +8,8 @@
 
 ## Project Configuration Management
 
-- **Central Package Management:** Use `Directory.Packages.props` at the repository root to centrally manage NuGet package versions for all projects. Avoid specifying package versions in individual `.csproj` files—always update dependencies in the central file.
-- **Centralized MSBuild Configuration:** Use `Directory.Build.props` and/or `Directory.Build.targets` at the solution or repository root to define and share common MSBuild properties, tooling, and targets across all projects. Avoid duplicating build settings in individual project files.
+- **Central Package Management:** Use `Directory.Packages.props` at the repository root to centrally manage NuGet package versions for all projects. Avoid specifying package versions in individual[...]  
+- **Centralized MSBuild Configuration:** Use `Directory.Build.props` and/or `Directory.Build.targets` at the solution or repository root to define and share common MSBuild properties, tooling, and[...]  
 
 ## Coding Style Rules
 
@@ -75,6 +75,31 @@
 
 - **Trailing Commas:** In multi-line initializers and parameter lists, include trailing commas.
 
+- **Attribute Loop Simplification:**  
+  When searching for specific attributes, prefer LINQ (`Select`, `Any`) over manual `foreach` loops for clarity and conciseness.
+  ```csharp
+  // Not preferred
+  foreach (AttributeData attr in comp.Assembly.GetAttributes())
+  {
+      string? name = attr.AttributeClass?.Name;
+      string? ns = attr.AttributeClass?.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+      if ((name == "EnableDualisGenerationAttribute" || name == "EnableDualisGeneration") && ns == "global::Dualis")
+      {
+          return true;
+      }
+  }
+  return false;
+  ```
+
+  // Preferred
+  return comp.Assembly.GetAttributes()
+      .Select(attr => attr.AttributeClass)
+      .Any(cls =>
+          (cls?.Name == "EnableDualisGenerationAttribute" || cls?.Name == "EnableDualisGeneration") &&
+          cls?.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Dualis"
+      );
+  ```
+
 ## Architecture Patterns
 - Follow **CQRS**:  
   - **Commands** mutate state and **Queries** are strictly read-only.  
@@ -103,7 +128,7 @@
 ## Naming Conventions
 - **PascalCase** for classes, methods, and properties.
 - **camelCase** for local variables and parameters.
-- Pluralize table names in EF Core (e.g., `"Users"`).
+- Pluralize table names in EF Core (e.g., "Users").
 - Prefix private/internal EF configuration classes with `internal sealed`.
 
 ## Entity Framework Core
