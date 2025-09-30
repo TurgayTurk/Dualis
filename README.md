@@ -1,17 +1,17 @@
-![Dualis](./logo.png)
+![Dualis](logo.png)
 
 # Dualis
 
 Fast, lightweight mediator for .NET with CQRS, pipelines, and notifications. Dualis uses a Roslyn source generator to emit the dispatcher and DI registration code at build time, keeping runtime overhead and allocations low while offering a clean, opinionated API.
 
 - CQRS: `ICommand`/`ICommand<T>`, `IQuery<T>` with `ICommandHandler<>`/`IQueryHandler<>`
-- Pipelines: request/response, void, and unified pipeline behaviours
+- Pipelines: request/response, void, and unified pipeline behaviors
 - Notifications: fan-out publish with failure strategies and alternative publishers
 - Source-generated `AddDualis` for DI registration and dispatcher implementation
 
 ## Install
 
-NuGet (when published):
+NuGet:
 
 ```
 dotnet add package Dualis
@@ -33,11 +33,11 @@ var dualizor = sp.GetRequiredService<IDualizor>();
 2) Define a query and handler:
 
 ```csharp
-public sealed record GetUser(Guid Id) : IQuery<UserDto>;
+public sealed record GetUserQuery(Guid Id) : IQuery<UserDto>;
 
-public sealed class GetUserHandler : IQueryHandler<GetUser, UserDto>
+internal sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, UserDto>
 {
-    public Task<UserDto> HandleAsync(GetUser query, CancellationToken ct = default)
+    public Task<UserDto> HandleAsync(GetUserQuery query, CancellationToken ct = default)
         => Task.FromResult(new UserDto(query.Id, "Alice"));
 }
 ```
@@ -45,7 +45,7 @@ public sealed class GetUserHandler : IQueryHandler<GetUser, UserDto>
 3) Send the query:
 
 ```csharp
-UserDto user = await dualizor.SendAsync(new GetUser(id));
+UserDto user = await dualizor.SendAsync(new GetUserQuery(id));
 ```
 
 Note: `IDualizor` implements both `ISender` (commands/queries) and `IPublisher` (notifications). You may inject `ISender` or `IPublisher` instead of `IDualizor` if you only need a subset.
@@ -55,15 +55,15 @@ Note: `IDualizor` implements both `ISender` (commands/queries) and `IPublisher` 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDualis(options =>
+builder.Services.AddDualis(opts =>
 {
-    options.NotificationFailureBehavior = NotificationFailureBehavior.ContinueAndAggregate;
-    options.MaxPublishDegreeOfParallelism = Environment.ProcessorCount;
+    opts.NotificationFailureBehavior = NotificationFailureBehavior.ContinueAndAggregate;
+    opts.MaxPublishDegreeOfParallelism = Environment.ProcessorCount;
 });
 
 var app = builder.Build();
 
-app.MapPost("/create-user", async (CreateUser cmd, IDualizor dualizor, CancellationToken ct) =>
+app.MapPost("/create-user", async (CreateUserCommand cmd, IDualizor dualizor, CancellationToken ct) =>
 {
     Guid id = await dualizor.SendAsync(cmd, ct);
     return Results.Ok(new { id });
@@ -82,7 +82,7 @@ Use the generated `AddDualis(IServiceCollection, Action<DualizorOptions>?)` to c
 - `NotificationFailureBehavior` — how to handle handler failures when publishing
   - `ContinueAndAggregate`, `ContinueAndLog`, `StopOnFirstException`
 - `MaxPublishDegreeOfParallelism` — optional max DOP for publishers that support parallelism
-- Auto?registration flags
+- Auto-registration flags
   - `RegisterDiscoveredBehaviors` (default true)
   - `RegisterDiscoveredCqrsHandlers` (default true)
   - `RegisterDiscoveredNotificationHandlers` (default true)
@@ -100,8 +100,8 @@ services.AddDualis(opts =>
     opts.MaxPublishDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount);
     opts.NotificationPublisherFactory = sp =>
         new ParallelWhenAllNotificationPublisher(
-            sp.GetService<ILogger<ParallelWhenAllNotificationPublisher>>(),
-            sp.GetService<ILoggerFactory>());
+            sp.GetRequiredService<ILogger<ParallelWhenAllNotificationPublisher>>(),
+            sp.GetRequiredService<ILoggerFactory>());
 
     // Disable auto-registration and register explicitly
     opts.RegisterDiscoveredBehaviors = false;
@@ -110,29 +110,34 @@ services.AddDualis(opts =>
 
     // If registration disabled, register explicitly
     opts.Pipelines
-        .Register<LoggingBehavior<CreateUser, Guid>>()
-        .Register<ValidationBehavior<CreateUser, Guid>>();
+        .Register<LoggingBehavior<CreateUserCommand, Guid>>()
+        .Register<ValidationBehavior<CreateUserCommand, Guid>>();
 
-    opts.CQRS.Register<CreateUserHandler>();
+    // Note: Registering the handler type is sufficient; the associated
+    // request (command/query) and response types are discovered automatically.
+    opts.CQRS.Register<CreateUserCommandHandler>();
+    opts.CQRS.Register<GetUserQueryHandler>();
     opts.Notifications.Register<UserCreatedEventHandler>();
 });
 ```
+
+Note: For manual registration from another assembly (e.g., Program.cs in Presentation), handler/behavior classes must be accessible. Make them public, or perform registration within the same assembly (e.g., via a public AddApplication extension) or use InternalsVisibleTo.
 
 ## Pipelines
 
 Three forms are supported:
 
-- Request/response: `IPipelineBehavior<TRequest,TResponse>`
+- Request/response: `IPipelineBehavior<TRequest, TResponse>`
 - Void request: `IPipelineBehavior<TRequest>`
-- Unified: `IPipelineBehaviour<TMessage, TResponse>` (for both requests and notifications; use `Unit` for void)
+- Unified: `IPipelineBehavior<TMessage, TResponse>` (for both requests and notifications; use `Unit` for void)
 
-Behaviors are executed in registration order (outer ? inner). You can also annotate behaviors with `PipelineOrderAttribute` to control ordering when auto-registered. Lower values run earlier.
+Behaviors are executed in registration order (outer -> inner). You can also annotate behaviors with `PipelineOrderAttribute` to control ordering when auto-registered. Lower values run earlier.
 
 Example request/response behavior:
 
 ```csharp
 [PipelineOrder(-10)]
-public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+internal sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
     {
@@ -144,7 +149,7 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
 }
 
 [PipelineOrder(5)]
-public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+internal sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
     {
@@ -157,7 +162,7 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
 Example void behavior:
 
 ```csharp
-public sealed class AuditBehavior<TRequest> : IPipelineBehavior<TRequest>
+internal sealed class AuditBehavior<TRequest> : IPipelineBehavior<TRequest>
 {
     public async Task Handle(TRequest request, RequestHandlerDelegate next, CancellationToken ct)
     {
@@ -177,11 +182,11 @@ Notes:
 Define a notification and handlers:
 
 ```csharp
-public sealed record UserCreated(Guid Id) : INotification;
+public sealed record UserCreatedEvent(Guid Id) : INotification;
 
-public sealed class UserCreatedHandler : INotificationHandler<UserCreated>
+internal sealed class UserCreatedEventHandler : INotificationHandler<UserCreatedEvent>
 {
-    public Task HandleAsync(UserCreated n, CancellationToken ct = default)
+    public Task HandleAsync(UserCreatedEvent n, CancellationToken ct = default)
         => Task.CompletedTask;
 }
 ```
@@ -189,7 +194,7 @@ public sealed class UserCreatedHandler : INotificationHandler<UserCreated>
 Publish from anywhere you have `IPublisher`/`IDualizor`:
 
 ```csharp
-await dualizor.PublishAsync(new UserCreated(id));
+await dualizor.PublishAsync(new UserCreatedEvent(id));
 ```
 
 Choose failure behavior:
@@ -224,16 +229,16 @@ services.AddDualis(opts =>
 Runtime internals:
 
 - Dualis caches discovered pipeline behaviors as arrays per handler shape to avoid repeated DI enumeration.
-- A zero?behavior fast path calls the handler directly to minimize overhead.
+- A zero-behavior fast path calls the handler directly to minimize overhead.
 
 Your code:
 
 - Use `IMemoryCache` or `IDistributedCache` in handlers/behaviors like any DI service.
 
 ```csharp
-public sealed class GetUserHandler(IMemoryCache cache) : IQueryHandler<GetUser, UserDto>
+internal sealed class GetUserQueryHandler(IMemoryCache cache) : IQueryHandler<GetUserQuery, UserDto>
 {
-    public Task<UserDto> HandleAsync(GetUser query, CancellationToken ct = default)
+    public Task<UserDto> HandleAsync(GetUserQuery query, CancellationToken ct = default)
     {
         if (!cache.TryGetValue(query.Id, out UserDto value))
         {
@@ -250,7 +255,7 @@ public sealed class GetUserHandler(IMemoryCache cache) : IQueryHandler<GetUser, 
 Dualis ships a source generator that:
 
 - emits `Dualizor`, the concrete mediator/dispatcher used by `IDualizor`
-- emits the `AddDualis` DI extension that auto?registers discovered handlers and behaviors (unless disabled by options)
+- emits the `AddDualis` DI extension that auto-registers discovered handlers and behaviors (unless disabled by options)
 
 This keeps the runtime lean and avoids reflection-based dispatch.
 
@@ -265,7 +270,7 @@ dotnet run -c Release --project tests/Dualis.Benchmarks/Dualis.Benchmarks.csproj
 ## Requirements
 
 - .NET 9 for the runtime library
-- The source generator targets .NET Standard 2.0 so it works across SDKs tooling
+- The source generator targets .NET Standard 2.0 so it works across SDKs and tooling
 
 ## Contributing
 

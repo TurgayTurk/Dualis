@@ -26,13 +26,17 @@
     <PackageVersion Include="Microsoft.Extensions.Options" Version="9.0.9" />
     <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.15.0.120848" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
-    <!-- Presentation -->
+  </ItemGroup>
+  <!-- Presentation-only packages -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Presentation'">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9" />
-    <!-- Benchmarks -->
+  </ItemGroup>
+  <!-- Benchmarks-only packages -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Dualis.Benchmarks'">
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.4" />
   </ItemGroup>
   <!-- Consumer smoke tests: pin Dualis package version -->
   <ItemGroup>
-    <PackageVersion Include="Dualis" Version="0.1.1" />
+    <PackageVersion Include="Dualis" Version="0.1.2" />
   </ItemGroup>
 </Project>
