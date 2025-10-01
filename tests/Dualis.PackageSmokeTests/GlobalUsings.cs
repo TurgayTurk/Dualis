@@ -1,0 +1,3 @@
+using Dualis;
+
+[assembly: EnableDualisGeneration]

@@ -1,5 +1,4 @@
-using Dualis.CQRS.Commands;
-using Dualis.CQRS.Queries;
+using Dualis.CQRS;
 using Dualis.Notifications;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;

@@ -13,13 +13,13 @@ internal static class SharedHandlerDiscovery
 {
     /// <summary>
     /// Configures syntax and semantic transforms that discover types implementing
-    /// <c>IQueryHandler</c>, <c>ICommandHandler</c>, <c>INotificationHandler</c>, and pipeline behaviors.
+    /// <c>IQueryHandler</c>, <c>ICommandHandler</c>, <c>IRequestHandler</c>, <c>INotificationHandler</c>, and pipeline behaviors.
     /// </summary>
     /// <param name="context">The incremental generator initialization context.</param>
     /// <returns>
     /// A provider that yields the compilation and the collected handler/behavior symbols.
     /// </returns>
-    public static IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> QueryHandlers, ImmutableArray<ISymbol> CommandHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)>
+    public static IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> QueryHandlers, ImmutableArray<ISymbol> CommandHandlers, ImmutableArray<ISymbol> RequestHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)>
         DiscoverHandlers(IncrementalGeneratorInitializationContext context)
     {
         IncrementalValuesProvider<INamedTypeSymbol> candidateTypes = context.SyntaxProvider
@@ -39,6 +39,7 @@ internal static class SharedHandlerDiscovery
 
             ImmutableArray<ISymbol>.Builder queryHandlers = ImmutableArray.CreateBuilder<ISymbol>();
             ImmutableArray<ISymbol>.Builder commandHandlers = ImmutableArray.CreateBuilder<ISymbol>();
+            ImmutableArray<ISymbol>.Builder requestHandlers = ImmutableArray.CreateBuilder<ISymbol>();
             ImmutableArray<ISymbol>.Builder notificationHandlers = ImmutableArray.CreateBuilder<ISymbol>();
             ImmutableArray<ISymbol>.Builder requestBehaviors = ImmutableArray.CreateBuilder<ISymbol>();
             ImmutableArray<ISymbol>.Builder voidBehaviors = ImmutableArray.CreateBuilder<ISymbol>();
@@ -49,13 +50,17 @@ internal static class SharedHandlerDiscovery
                 foreach (INamedTypeSymbol iface in type.AllInterfaces)
                 {
                     string ns = iface.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    if (iface.Name == "IQueryHandler" && ns == "global::Dualis.CQRS.Queries")
+                    if (iface.Name == "IQueryHandler" && ns == "global::Dualis.CQRS")
                     {
                         queryHandlers.Add(type);
                     }
-                    else if (iface.Name == "ICommandHandler" && ns == "global::Dualis.CQRS.Commands")
+                    else if (iface.Name == "ICommandHandler" && ns == "global::Dualis.CQRS")
                     {
                         commandHandlers.Add(type);
+                    }
+                    else if (iface.Name == "IRequestHandler" && ns == "global::Dualis.CQRS")
+                    {
+                        requestHandlers.Add(type);
                     }
                     else if (iface.Name == "INotificationHandler" && ns == "global::Dualis.Notifications")
                     {
@@ -80,6 +85,7 @@ internal static class SharedHandlerDiscovery
                 compilation,
                 queryHandlers.ToImmutable(),
                 commandHandlers.ToImmutable(),
+                requestHandlers.ToImmutable(),
                 notificationHandlers.ToImmutable(),
                 requestBehaviors.ToImmutable(),
                 voidBehaviors.ToImmutable(),

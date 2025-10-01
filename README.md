@@ -19,9 +19,50 @@ dotnet add package Dualis
 
 The package includes the source generator; no extra analyzer package is required.
 
+## Enable code generation (required)
+
+Dualis generators are opt-in. Enable them in your host project using ONE of the following:
+
+- Recommended: Assembly attribute in your project (e.g., `GlobalUsings.cs`)
+
+```csharp
+using Dualis;
+
+[assembly: EnableDualisGeneration]
+```
+
+- Or via MSBuild property (make it compiler-visible)
+  - Add to your project or `Directory.Build.props`:
+
+```xml
+<PropertyGroup>
+  <DualisEnableGenerator>true</DualisEnableGenerator>
+</PropertyGroup>
+```
+
+  - And make the property visible to the compiler using either option:
+    - Add a `.globalconfig` at repo root:
+
+```
+is_global = true
+build_property.DualisEnableGenerator = true
+```
+
+    - Or add to MSBuild (project or `Directory.Build.props`):
+
+```xml
+<ItemGroup>
+  <CompilerVisibleProperty Include="DualisEnableGenerator" />
+</ItemGroup>
+```
+
+Notes:
+- Add `using Dualis;` in files where you call `services.AddDualis()` so the generated extension is in scope.
+- Source generators require SDK-style projects on supported SDKs/IDEs.
+
 ## Quick start
 
-1) Register in DI (the source generator provides `AddDualis`). It auto-registers all core services, discovered handlers, pipeline behaviors, and notification handlers. No further registration or settings required.
+1) Register in DI (the source generator provides `AddDualis`). It auto-registers core services, discovered handlers, pipeline behaviors, and notification handlers.
 
 ```csharp
 var services = new ServiceCollection();
@@ -129,7 +170,7 @@ Three forms are supported:
 
 - Request/response: `IPipelineBehavior<TRequest, TResponse>`
 - Void request: `IPipelineBehavior<TRequest>`
-- Unified: `IPipelineBehavior<TMessage, TResponse>` (for both requests and notifications; use `Unit` for void)
+- Unified: `IPipelineBehaviour<TMessage, TResponse>` (for both requests and notifications; use `Unit` for void)
 
 Behaviors are executed in registration order (outer -> inner). You can also annotate behaviors with `PipelineOrderAttribute` to control ordering when auto-registered. Lower values run earlier.
 
@@ -265,31 +306,33 @@ This keeps the runtime lean and avoids reflection-based dispatch.
 - It generates a sealed `Dualis.Dualizor` class with direct, type-safe dispatch (no reflection) and minimal allocations, plus the `AddDualis` extension that wires everything into DI.
 - The generator includes a safety guard: if a `Dualis.Dualizor` already exists in the compilation or references (e.g., a shared kernel), generation is skipped to avoid duplicate-type conflicts.
 
-### When it runs (host-only)
+### When it runs (gating)
 
-- The analyzer is delivered via `buildTransitive` with an MSBuild gate. It auto-enables only for host projects (`OutputType` is `Exe`/`WinExe`) and is off for class libraries and test projects.
-- This means Domain/Application/Infrastructure libraries won’t run the generator; the composition root (API/Web/Worker) does.
+The generator runs when either of these is true in the project where you call `services.AddDualis(...)`:
 
-Advanced override (optional):
+- `[assembly: EnableDualisGeneration]` is present, or
+- MSBuild property `DualisEnableGenerator` is visible to the compiler and set to `true` (see “Enable code generation”).
 
-- To force-enable in a specific project, set `DualisEnableGenerator` to `true` in that project file.
-- To force-disable in a host project, set `DualisEnableGenerator` to `false`.
+### MSBuild property visibility
 
-```xml
-<PropertyGroup>
-  <DualisEnableGenerator>true</DualisEnableGenerator>
-</PropertyGroup>
-```
+- If you set `DualisEnableGenerator` in `Directory.Build.props`, ensure it’s visible to the compiler:
+  - Add `<CompilerVisibleProperty Include="DualisEnableGenerator" />` to the same `Directory.Build.props` or project file.
+  - Or, add a `.globalconfig` at the repo root with `build_property.DualisEnableGenerator = true`.
 
 ### DDD/Clean Architecture guidance
 
-- Reference Dualis everywhere you need the abstractions; the generator won’t run in libraries due to host-only gating.
-- Keep `services.AddDualis(...)` in the composition root. No other layers need to register anything.
+- Reference Dualis abstractions in any layer. Enable generation in the composition root (API/Web/Worker) where you compose DI and call `services.AddDualis(...)`.
 
 ### Troubleshooting
 
-- Duplicate type ‘Dualizor’: another assembly defines `Dualis.Dualizor`. The generator detects this and skips emitting its own mediator. Ensure your DI registers the existing mediator to `IDualizor`/`ISender`/`IPublisher`.
-- Generator didn’t run: ensure you’re building a host project (Exe/WinExe) or set `DualisEnableGenerator` to `true`. Clean and rebuild to clear stale analyzer artifacts.
+- "AddDualis not found" or "IServiceCollection does not contain a definition for AddDualis":
+  - Ensure generator is enabled (assembly attribute or compiler-visible property).
+  - Ensure `using Dualis;` is in scope where you call `services.AddDualis(...)`.
+  - Clean + rebuild to clear stale analyzer artifacts.
+- Duplicate type `Dualis.Dualizor`:
+  - Another assembly defines the type. The generator will skip emitting it. Ensure DI registers the existing mediator to `IDualizor`/`ISender`/`IPublisher`.
+- Analyzer not loading in IDE:
+  - Check Dependencies > Analyzers in your project to see `Dualis`’s analyzer is present.
 
 ## Benchmarks
 

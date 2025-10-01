@@ -1,4 +1,4 @@
-﻿namespace Dualis.CQRS.Commands;
+namespace Dualis.CQRS;
 
 /// <summary>
 /// Handles a command that does not produce a response.

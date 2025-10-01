@@ -1,10 +1,9 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 using BenchmarkDotNet.Configs;
-using Dualis.CQRS.Commands;
-using Dualis.CQRS.Queries;
 using Dualis.Pipeline;
 using Microsoft.Extensions.DependencyInjection;
+using Dualis.CQRS;
 
 namespace Dualis.Benchmarks;
 

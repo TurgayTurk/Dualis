@@ -44,18 +44,12 @@
 
   <!-- Ship the source generator as an analyzer; NuGet will place it under analyzers/dotnet/cs -->
   <ItemGroup>
-    <ProjectReference Include="..\SourceGen\SourceGen.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\SourceGen\SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!-- Include solution README and icon in the package root -->
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="/" />
     <None Include="..\..\logo.png" Pack="true" PackagePath="/" Visible="false" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="DependencyInjection\" />
   </ItemGroup>
 </Project>

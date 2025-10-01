@@ -1,3 +1,4 @@
+using Dualis.CQRS;
 using FluentAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -78,7 +79,7 @@ public sealed class ServiceCollectionGeneratorTests
             references: [
                 MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Task).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Dualis.CQRS.Commands.ICommand).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(ICommand).Assembly.Location),
             ],
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         return compilation;

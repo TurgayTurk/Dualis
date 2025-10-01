@@ -1,4 +1,4 @@
-using Dualis.CQRS.Commands;
+using Dualis.CQRS;
 using Dualis.Pipeline;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;

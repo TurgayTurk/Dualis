@@ -1,3 +1,4 @@
+using Dualis.CQRS;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -74,10 +75,10 @@ public sealed class CqrsRegistry
 
             Type def = iface.GetGenericTypeDefinition();
 
-            bool isSupported = def == typeof(CQRS.Commands.ICommandHandler<,>)
-                               || def == typeof(CQRS.Commands.ICommandHandler<>)
-                               || def == typeof(CQRS.Queries.IQueryHandler<,>)
-                               || def == typeof(CQRS.Queries.IQueryHandler<>);
+            bool isSupported = def == typeof(ICommandHandler<,>)
+                               || def == typeof(ICommandHandler<>)
+                               || def == typeof(IQueryHandler<,>)
+                               || def == typeof(IQueryHandler<>);
             if (!isSupported)
             {
                 continue;

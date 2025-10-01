@@ -27,7 +27,7 @@ public sealed class SmokeTests
         ServiceProvider sp = services.BuildServiceProvider();
         IDualizor dualizor = sp.GetRequiredService<IDualizor>();
 
-        UserDto result = await dualizor.SendAsync(new GetUser(new System.Guid("00000000-0000-0000-0000-000000000001")));
+        UserDto result = await dualizor.SendAsync(new GetUser(new Guid("00000000-0000-0000-0000-000000000001")));
 
         result.Should().NotBeNull();
         result.Name.Should().Be("Alice");
@@ -42,7 +42,7 @@ public sealed record GetUser(Guid Id) : IQuery<UserDto>;
 /// <summary>
 /// Minimal DTO returned by the sample handler for validation in the smoke test.
 /// </summary>
-public sealed record UserDto(System.Guid Id, string Name);
+public sealed record UserDto(Guid Id, string Name);
 
 /// <summary>
 /// Sample handler that echoes the provided identifier and returns a fixed name for verification.

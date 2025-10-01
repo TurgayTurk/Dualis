@@ -1,4 +1,4 @@
-﻿namespace Dualis.CQRS.Queries;
+namespace Dualis.CQRS;
 
 /// <summary>
 /// Handles a query that does not produce a response.

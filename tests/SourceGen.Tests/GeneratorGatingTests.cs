@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text;
+using Dualis.CQRS;
 using FluentAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -23,7 +24,7 @@ public sealed class GeneratorGatingTests
     {
         MetadataReference mscorlib = MetadataReference.CreateFromFile(typeof(object).Assembly.Location);
         MetadataReference systemRuntime = MetadataReference.CreateFromFile(typeof(Task).Assembly.Location);
-        MetadataReference dualisAbstractions = MetadataReference.CreateFromFile(typeof(Dualis.CQRS.Commands.ICommand).Assembly.Location);
+        MetadataReference dualisAbstractions = MetadataReference.CreateFromFile(typeof(ICommand).Assembly.Location);
 
         var refs = ImmutableArray.Create(mscorlib, systemRuntime, dualisAbstractions);
         if (extraRefs is not null && extraRefs.Length > 0)
