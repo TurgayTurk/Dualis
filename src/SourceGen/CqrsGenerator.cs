@@ -5,13 +5,21 @@ using System.Text;
 namespace SourceGen;
 
 /// <summary>
-/// Roslyn incremental generator that emits the <c>AddDualis</c> extension method.
-/// The generated method registers discovered CQRS handlers and pipeline behaviors
-/// and wires up notification infrastructure based on <c>DualizorOptions</c>.
+/// Roslyn incremental generator that emits the <c>AddDualis</c> extension method, which registers handlers,
+/// pipeline behaviors, and infrastructure into IServiceCollection.
 /// </summary>
 [Generator]
 public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
 {
+    private static readonly string[] NewlineSeparators = ["\r\n", "\n", "\r"]; // CA1861
+
+    // Use a display format that preserves full qualification and nullability annotations (e.g., T?).
+    private static readonly SymbolDisplayFormat FullyQualifiedWithNullability = new(
+        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters | SymbolDisplayGenericsOptions.IncludeVariance,
+        miscellaneousOptions: SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier | SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
+
     /// <summary>
     /// Configures the generator pipeline and registers the source output callback.
     /// </summary>
@@ -25,28 +33,60 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
                 {
                     return (true, string.Equals(v, "true", System.StringComparison.OrdinalIgnoreCase));
                 }
+
                 return (false, false);
+            });
+
+        IncrementalValueProvider<(bool exists, bool isTrue)> propFromTexts = context.AdditionalTextsProvider
+            .Where(static t => t.Path.EndsWith(".globalconfig", System.StringComparison.OrdinalIgnoreCase) || t.Path.EndsWith(".editorconfig", System.StringComparison.OrdinalIgnoreCase))
+            .Select(static (t, ct) => t.GetText(ct)?.ToString() ?? string.Empty)
+            .Collect()
+            .Select(static (texts, _) =>
+            {
+                const string key = "build_property.DualisEnableGenerator";
+                string? content = texts.FirstOrDefault(c => c.IndexOf(key, System.StringComparison.OrdinalIgnoreCase) >= 0);
+                if (content is null)
+                {
+                    return (false, false);
+                }
+
+                string? line = content
+                    .Split(NewlineSeparators, System.StringSplitOptions.None)
+                    .FirstOrDefault(l => l.IndexOf(key, System.StringComparison.OrdinalIgnoreCase) >= 0);
+                if (line is null)
+                {
+                    return (false, false);
+                }
+
+                int eq = line.IndexOf('=');
+                if (eq < 0)
+                {
+                    return (false, false);
+                }
+
+                string rhs = line.Substring(eq + 1).Trim();
+                bool val = string.Equals(rhs, "true", System.StringComparison.OrdinalIgnoreCase);
+                return (true, val);
             });
 
         IncrementalValueProvider<bool> enabledByAttr = context.CompilationProvider
             .Select(static (comp, _) => HasEnableAttribute(comp));
 
-        IncrementalValueProvider<bool> enabled = prop.Combine(enabledByAttr)
-            .Select(static (pair, _) =>
+        IncrementalValueProvider<bool> enabled = prop.Combine(propFromTexts).Combine(enabledByAttr)
+            .Select(static (combo, _) =>
             {
-                (bool exists, bool isTrue) = pair.Left;
-                bool byAttr = pair.Right;
-                bool byProp = exists && isTrue; // enable only when property explicitly true
+                (bool exists, bool isTrue) = combo.Left.Left;
+                (bool exists, bool isTrue) fallback = combo.Left.Right;
+                bool byAttr = combo.Right;
+                bool byProp = exists && isTrue || fallback.exists && fallback.isTrue;
                 return byProp || byAttr;
             });
 
-        IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> QueryHandlers, ImmutableArray<ISymbol> CommandHandlers, ImmutableArray<ISymbol> RequestHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)> items = SharedHandlerDiscovery.DiscoverHandlers(context);
+        IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> RequestHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)> items = SharedHandlerDiscovery.DiscoverHandlers(context);
 
         context.RegisterSourceOutput(items.Combine(enabled), static (spc, tuple) =>
         {
             ((Compilation Compilation,
-              ImmutableArray<ISymbol> QueryHandlers,
-              ImmutableArray<ISymbol> CommandHandlers,
               ImmutableArray<ISymbol> RequestHandlers,
               ImmutableArray<ISymbol> NotificationHandlers,
               ImmutableArray<ISymbol> RequestBehaviors,
@@ -57,8 +97,6 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
                 return; // generator disabled in this project
             }
 
-            ImmutableArray<ISymbol> queryHandlers = source.QueryHandlers;
-            ImmutableArray<ISymbol> commandHandlers = source.CommandHandlers;
             ImmutableArray<ISymbol> requestHandlers = source.RequestHandlers;
             ImmutableArray<ISymbol> notificationHandlers = source.NotificationHandlers;
             ImmutableArray<ISymbol> requestBehaviors = source.RequestBehaviors;
@@ -94,9 +132,14 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
             sb.AppendLine("        services.AddOptions<DualizorOptions>();");
             sb.AppendLine("        if (configure is not null) services.Configure(configure);");
             sb.AppendLine();
-            sb.AppendLine("        // Eagerly apply manual registries while ServiceCollection is mutable and compute auto-registration flags");
+            sb.AppendLine("        // Idempotency guard: only register service graph once; allow multiple configure delegates");
+            sb.AppendLine("        bool firstRun = !System.Linq.Enumerable.Any(services, sd => sd.ServiceType == typeof(AddDualisMarker));");
+            sb.AppendLine("        services.TryAddSingleton<AddDualisMarker>();");
+            sb.AppendLine("        if (!firstRun) return services;");
+            sb.AppendLine();
+            sb.AppendLine("        // Eagerly apply manual registries and compute auto-registration flags");
             sb.AppendLine("        bool autoRegisterBehaviors = true;");
-            sb.AppendLine("        bool autoRegisterCqrsHandlers = true;");
+            sb.AppendLine("        bool autoRegisterRequestHandlers = true;");
             sb.AppendLine("        bool autoRegisterNotificationHandlers = true;");
             sb.AppendLine("        if (configure is not null)");
             sb.AppendLine("        {");
@@ -106,7 +149,7 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
             sb.AppendLine("            tmp.CQRS.Apply(services);");
             sb.AppendLine("            tmp.Notifications.Apply(services);");
             sb.AppendLine("            autoRegisterBehaviors = tmp.RegisterDiscoveredBehaviors && tmp.Pipelines.AutoRegisterEnabled;");
-            sb.AppendLine("            autoRegisterCqrsHandlers = tmp.RegisterDiscoveredCqrsHandlers;");
+            sb.AppendLine("            autoRegisterRequestHandlers = tmp.RegisterDiscoveredCqrsHandlers;");
             sb.AppendLine("            autoRegisterNotificationHandlers = tmp.RegisterDiscoveredNotificationHandlers;");
             sb.AppendLine("        }");
             sb.AppendLine();
@@ -120,46 +163,46 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
             sb.AppendLine("        }");
             sb.AppendLine();
             sb.AppendLine("        // Generated mediator (single instance per scope) - if available");
-            sb.AppendLine("        Type? dualizorType = Type.GetType(\"Dualis.Dualizor\");");
+            sb.AppendLine("        Type? dualizorType = Type.GetType(\"Dualis.Dualizor\") ?? AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(\"Dualis.Dualizor\", throwOnError: false)).FirstOrDefault(t => t is not null);");
             sb.AppendLine("        if (dualizorType is not null)");
             sb.AppendLine("        {");
             sb.AppendLine("            services.TryAdd(new ServiceDescriptor(dualizorType, dualizorType, ServiceLifetime.Scoped));");
-            sb.AppendLine("            services.TryAdd(ServiceDescriptor.Scoped(typeof(IDualizor), sp => (IDualizor)sp.GetRequiredService(dualizorType))); ");
-            sb.AppendLine("            services.TryAdd(ServiceDescriptor.Scoped(typeof(ISender), sp => (ISender)sp.GetRequiredService(dualizorType))); ");
-            sb.AppendLine("            services.TryAdd(ServiceDescriptor.Scoped(typeof(IPublisher), sp => (IPublisher)sp.GetRequiredService(dualizorType))); ");
+            sb.AppendLine("            services.TryAdd(ServiceDescriptor.Scoped(typeof(IDualizor), sp => (IDualizor)sp.GetRequiredService(dualizorType)));");
+            sb.AppendLine("            services.TryAdd(ServiceDescriptor.Scoped(typeof(ISender), sp => (ISender)sp.GetRequiredService(dualizorType)));");
+            sb.AppendLine("            services.TryAdd(ServiceDescriptor.Scoped(typeof(IPublisher), sp => (IPublisher)sp.GetRequiredService(dualizorType)));");
             sb.AppendLine("        }");
             sb.AppendLine();
             sb.AppendLine("        // Auto-register discovered handlers based on flags");
-            sb.AppendLine("        if (autoRegisterCqrsHandlers)");
+            sb.AppendLine("        if (autoRegisterRequestHandlers)");
             sb.AppendLine("        {");
-            AppendCommandRegistrations(sb, commandHandlers);
-            sb.AppendLine();
-            AppendQueryRegistrations(sb, queryHandlers);
-            sb.AppendLine();
-            AppendUnifiedRequestRegistrations(sb, requestHandlers);
+            sb.AppendLine("            // IRequestHandler registrations");
+            AppendRequestHandlerRegistrations(sb, requestHandlers);
             sb.AppendLine("        }");
             sb.AppendLine();
             sb.AppendLine("        if (autoRegisterNotificationHandlers)");
             sb.AppendLine("        {");
+            sb.AppendLine("            // INotificationHandler registrations");
             AppendNotificationRegistrations(sb, notificationHandlers);
             sb.AppendLine("        }");
             sb.AppendLine();
             sb.AppendLine("        // Infra (publisher + context)");
-            sb.AppendLine("        services.AddScoped<INotificationPublisher>(sp =>");
+            sb.AppendLine("        services.TryAdd(ServiceDescriptor.Scoped<INotificationPublisher>(sp =>");
             sb.AppendLine("        {");
             sb.AppendLine("            DualizorOptions options = sp.GetRequiredService<IOptions<DualizorOptions>>().Value;");
             sb.AppendLine("            return options.NotificationPublisherFactory(sp);");
-            sb.AppendLine("        });");
-            sb.AppendLine("        services.AddScoped(sp =>");
+            sb.AppendLine("        }));");
+            sb.AppendLine("        services.TryAdd(ServiceDescriptor.Scoped(sp =>");
             sb.AppendLine("        {");
             sb.AppendLine("            DualizorOptions options = sp.GetRequiredService<IOptions<DualizorOptions>>().Value;");
             sb.AppendLine("            return new NotificationPublishContext(options.NotificationFailureBehavior, options.MaxPublishDegreeOfParallelism);");
-            sb.AppendLine("        });");
-            sb.AppendLine("        services.AddScoped<SequentialNotificationPublisher>();");
-            sb.AppendLine("        services.AddScoped<ParallelWhenAllNotificationPublisher>();");
+            sb.AppendLine("        }));");
+            sb.AppendLine("        services.TryAddScoped<SequentialNotificationPublisher>();");
+            sb.AppendLine("        services.TryAddScoped<ParallelWhenAllNotificationPublisher>();");
             sb.AppendLine();
             sb.AppendLine("        return services;");
             sb.AppendLine("    }");
+            sb.AppendLine();
+            sb.AppendLine("    internal sealed class AddDualisMarker { }");
             sb.AppendLine("}");
             sb.AppendLine("#pragma warning restore CS1591, CA1812, CA1822, IDE0051, IDE0060");
 
@@ -175,16 +218,12 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
             {
                 return false;
             }
+
             string name = cls.Name;
             string ns = cls.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             return (name == "EnableDualisGenerationAttribute" || name == "EnableDualisGeneration") && ns == "global::Dualis";
         });
 
-    /// <summary>
-    /// Determines whether a generic interface contains any open generic type parameters.
-    /// </summary>
-    /// <param name="iface">The interface symbol to inspect.</param>
-    /// <returns><see langword="true"/> if any type arguments are open generic parameters; otherwise <see langword="false"/>.</returns>
     private static bool HasTypeParameters(INamedTypeSymbol iface)
         => iface.TypeArguments.Any(static t => t is ITypeParameterSymbol);
 
@@ -204,14 +243,10 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
                 }
             }
         }
+
         return min ?? 0;
     }
 
-    /// <summary>
-    /// Emits DI registrations for request/response pipeline behaviors.
-    /// Generates open or closed mappings depending on the implementation shape.
-    /// Supports both IPipelineBehavior and IPipelineBehaviour.
-    /// </summary>
     private static void AppendRequestBehaviorRegistrations(StringBuilder sb, ImmutableArray<ISymbol> behaviorSymbols)
     {
         HashSet<string> emitted = [];
@@ -233,7 +268,6 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
                 {
                     if (!behavior.IsUnboundGenericType && !behavior.IsGenericType)
                     {
-                        // Cannot bind open service to non-generic implementation
                         continue;
                     }
 
@@ -244,8 +278,8 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
                 }
                 else
                 {
-                    string closedService = iface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string implType = behavior.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    string closedService = iface.ToDisplayString(FullyQualifiedWithNullability);
+                    string implType = behavior.ToDisplayString(FullyQualifiedWithNullability);
                     service = $"typeof({closedService})";
                     impl = $"typeof({implType})";
                 }
@@ -259,10 +293,6 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
         }
     }
 
-    /// <summary>
-    /// Emits DI registrations for void request pipeline behaviors.
-    /// Generates open or closed mappings depending on the implementation shape.
-    /// </summary>
     private static void AppendVoidBehaviorRegistrations(StringBuilder sb, ImmutableArray<ISymbol> behaviorSymbols)
     {
         HashSet<string> emitted = [];
@@ -294,8 +324,8 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
                 }
                 else
                 {
-                    string closedService = iface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string implType = behavior.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    string closedService = iface.ToDisplayString(FullyQualifiedWithNullability);
+                    string implType = behavior.ToDisplayString(FullyQualifiedWithNullability);
                     service = $"typeof({closedService})";
                     impl = $"typeof({implType})";
                 }
@@ -309,108 +339,7 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
         }
     }
 
-    /// <summary>
-    /// Appends DI registrations for all discovered command handlers.
-    /// </summary>
-    /// <param name="sb">The target <see cref="StringBuilder"/> for generated code.</param>
-    /// <param name="commandHandlers">The set of symbols that implement <c>ICommandHandler</c>.</param>
-    private static void AppendCommandRegistrations(StringBuilder sb, ImmutableArray<ISymbol> commandHandlers)
-    {
-        HashSet<string> emitted = [];
-        foreach (INamedTypeSymbol handlerSymbol in commandHandlers.OfType<INamedTypeSymbol>())
-        {
-            if (handlerSymbol.TypeKind != TypeKind.Class || handlerSymbol.IsAbstract)
-            {
-                continue;
-            }
-
-            IEnumerable<(INamedTypeSymbol Iface, ImmutableArray<ITypeSymbol> TypeArgs)> matches = handlerSymbol.AllInterfaces
-                .Where(i => i.Name == "ICommandHandler" && i.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Dualis.CQRS" && (i.TypeArguments.Length == 1 || i.TypeArguments.Length == 2) && !HasTypeParameters(i))
-                .Select(i => (i, i.TypeArguments));
-
-            string handlerName = handlerSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-
-            foreach ((INamedTypeSymbol Iface, ImmutableArray<ITypeSymbol> TypeArgs) in matches)
-            {
-                string ifaceNs = Iface.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                string ifaceFull = ifaceNs + ".ICommandHandler";
-
-                if (TypeArgs.Length == 2)
-                {
-                    string commandType = TypeArgs[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string responseType = TypeArgs[1].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string key = $"C2|{ifaceFull}|{commandType}|{responseType}|{handlerName}";
-                    if (emitted.Add(key))
-                    {
-                        sb.AppendLine($"        services.TryAddScoped<{ifaceFull}<{commandType}, {responseType}>, {handlerName}>();");
-                    }
-                }
-                else
-                {
-                    string commandType = TypeArgs[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string key = $"C1|{ifaceFull}|{commandType}|{handlerName}";
-                    if (emitted.Add(key))
-                    {
-                        sb.AppendLine($"        services.TryAddScoped<{ifaceFull}<{commandType}>, {handlerName}>();");
-                    }
-                }
-            }
-        }
-    }      
-
-    /// <summary>
-    /// Appends DI registrations for all discovered query handlers.
-    /// </summary>
-    /// <param name="sb">The target <see cref="StringBuilder"/> for generated code.</param>
-    /// <param name="queryHandlers">The set of symbols that implement <c>IQueryHandler</c>.</param>
-    private static void AppendQueryRegistrations(StringBuilder sb, ImmutableArray<ISymbol> queryHandlers)
-    {
-        HashSet<string> emitted = [];
-        foreach (INamedTypeSymbol handlerSymbol in queryHandlers.OfType<INamedTypeSymbol>())
-        {
-            if (handlerSymbol.TypeKind != TypeKind.Class || handlerSymbol.IsAbstract)
-            {
-                continue;
-            }
-
-            IEnumerable<(INamedTypeSymbol Iface, ImmutableArray<ITypeSymbol> TypeArgs)> matches = handlerSymbol.AllInterfaces
-                .Where(i => i.Name == "IQueryHandler" && i.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Dualis.CQRS" && (i.TypeArguments.Length == 1 || i.TypeArguments.Length == 2) && !HasTypeParameters(i))
-                .Select(i => (i, i.TypeArguments));
-
-            string handlerName = handlerSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-
-            foreach ((INamedTypeSymbol Iface, ImmutableArray<ITypeSymbol> TypeArgs) in matches)
-            {
-                string ifaceNs = Iface.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                string ifaceFull = ifaceNs + ".IQueryHandler";
-
-                if (TypeArgs.Length == 2)
-                {
-                    string queryType = TypeArgs[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string responseType = TypeArgs[1].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string key = $"Q2|{ifaceFull}|{queryType}|{responseType}|{handlerName}";
-                    if (emitted.Add(key))
-                    {
-                        sb.AppendLine($"        services.TryAddScoped<{ifaceFull}<{queryType}, {responseType}>, {handlerName}>();");
-                    }
-                }
-                else
-                {
-                    string queryType = TypeArgs[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string key = $"Q1|{ifaceFull}|{queryType}|{handlerName}";
-                    if (emitted.Add(key))
-                    {
-                        sb.AppendLine($"        services.TryAddScoped<{ifaceFull}<{queryType}>, {handlerName}>();");
-                    }
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Appends DI registrations for all discovered unified request handlers (IRequestHandler).
-    /// </summary>
-    private static void AppendUnifiedRequestRegistrations(StringBuilder sb, ImmutableArray<ISymbol> requestHandlers)
+    private static void AppendRequestHandlerRegistrations(StringBuilder sb, ImmutableArray<ISymbol> requestHandlers)
     {
         HashSet<string> emitted = [];
         foreach (INamedTypeSymbol handlerSymbol in requestHandlers.OfType<INamedTypeSymbol>())
@@ -424,7 +353,7 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
                 .Where(i => i.Name == "IRequestHandler" && i.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Dualis.CQRS" && (i.TypeArguments.Length == 1 || i.TypeArguments.Length == 2) && !HasTypeParameters(i))
                 .Select(i => (i, i.TypeArguments));
 
-            string handlerName = handlerSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            string handlerName = handlerSymbol.ToDisplayString(FullyQualifiedWithNullability);
 
             foreach ((INamedTypeSymbol Iface, ImmutableArray<ITypeSymbol> TypeArgs) in matches)
             {
@@ -433,8 +362,8 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
 
                 if (TypeArgs.Length == 2)
                 {
-                    string requestType = TypeArgs[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string responseType = TypeArgs[1].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    string requestType = TypeArgs[0].ToDisplayString(FullyQualifiedWithNullability);
+                    string responseType = TypeArgs[1].ToDisplayString(FullyQualifiedWithNullability);
                     string key = $"R2|{ifaceFull}|{requestType}|{responseType}|{handlerName}";
                     if (emitted.Add(key))
                     {
@@ -443,7 +372,7 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
                 }
                 else
                 {
-                    string requestType = TypeArgs[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    string requestType = TypeArgs[0].ToDisplayString(FullyQualifiedWithNullability);
                     string key = $"R1|{ifaceFull}|{requestType}|{handlerName}";
                     if (emitted.Add(key))
                     {
@@ -454,9 +383,6 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
         }
     }
 
-    /// <summary>
-    /// Appends DI registrations for all discovered notification handlers.
-    /// </summary>
     private static void AppendNotificationRegistrations(StringBuilder sb, ImmutableArray<ISymbol> notificationHandlers)
     {
         HashSet<string> emitted = [];
@@ -475,11 +401,11 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
                     !HasTypeParameters(i))
                 .Select(i => i.TypeArguments);
 
-            string handlerName = handlerSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            string handlerName = handlerSymbol.ToDisplayString(FullyQualifiedWithNullability);
 
             foreach (ImmutableArray<ITypeSymbol> typeArguments in interfaceTypeArguments)
             {
-                string notificationType = typeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                string notificationType = typeArguments[0].ToDisplayString(FullyQualifiedWithNullability);
                 string key = $"N1|{notificationType}|{handlerName}";
                 if (emitted.Add(key))
                 {

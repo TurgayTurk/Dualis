@@ -26,22 +26,21 @@ public sealed class ServiceCollectionGeneratorTests
         // Arrange
         string source = """
         using Dualis;
-        using Dualis.CQRS.Queries;
-        using Dualis.CQRS.Commands;
+        using Dualis.CQRS;
         using Dualis.Notifications;
         using Dualis.Pipeline;
         
         [assembly: EnableDualisGeneration]
-        public sealed record Q : IQuery<string>;
-        public sealed class QHandler : IQueryHandler<Q, string>
+        public sealed record Q : IRequest<string>;
+        public sealed class QHandler : IRequestHandler<Q, string>
         {
-            public Task<string> HandleAsync(Q query, CancellationToken cancellationToken = default) => Task.FromResult("ok");
+            public Task<string> Handle(Q request, CancellationToken cancellationToken = default) => Task.FromResult("ok");
         }
         
-        public sealed record C : ICommand;
-        public sealed class CHandler : ICommandHandler<C>
+        public sealed record C : IRequest;
+        public sealed class CHandler : IRequestHandler<C>
         {
-            public Task HandleAsync(C command, CancellationToken cancellationToken = default) => Task.CompletedTask;
+            public Task Handle(C request, CancellationToken cancellationToken = default) => Task.CompletedTask;
         }
         
         public sealed record N : INotification;
@@ -79,7 +78,7 @@ public sealed class ServiceCollectionGeneratorTests
             references: [
                 MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Task).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(ICommand).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(IRequest).Assembly.Location),
             ],
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         return compilation;

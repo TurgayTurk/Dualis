@@ -15,7 +15,7 @@ public sealed class SequentialNotificationPublisher(ILogger<SequentialNotificati
     /// <param name="handlers">The set of handlers to invoke.</param>
     /// <param name="context">The publish context controlling failure behavior and parallelism.</param>
     /// <param name="cancellationToken">A token to observe while waiting for completion.</param>
-    public async Task PublishAsync<TNotification>(
+    public async Task Publish<TNotification>(
         TNotification notification,
         IEnumerable<INotificationHandler<TNotification>> handlers,
         NotificationPublishContext context,
@@ -28,7 +28,7 @@ public sealed class SequentialNotificationPublisher(ILogger<SequentialNotificati
         {
             try
             {
-                await handler.HandleAsync(notification, cancellationToken).ConfigureAwait(false);
+                await handler.Handle(notification, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {

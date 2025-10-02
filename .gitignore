@@ -24,3 +24,9 @@ GeneratedFiles/
 
 # Exclude local Presentation project entirely from version control
 src/Presentation/
+
+# Exclude sample DDD projects from git
+/samples/DDD.Domain/
+/samples/DDD.Application/
+/samples/DDD.Infrastructure/
+/samples/DDD.Presentation/

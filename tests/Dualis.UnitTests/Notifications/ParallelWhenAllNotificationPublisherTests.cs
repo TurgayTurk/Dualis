@@ -55,7 +55,7 @@ public sealed class ParallelWhenAllNotificationPublisherTests
         ParallelWhenAllNotificationPublisher publisher = new(NullLogger<ParallelWhenAllNotificationPublisher>.Instance, NullLoggerFactory.Instance);
         NotificationPublishContext context = new(NotificationFailureBehavior.ContinueAndAggregate, dop);
 
-        await publisher.PublishAsync(new TestNote(1), handlers, context, CancellationToken.None);
+        await publisher.Publish(new TestNote(1), handlers, context, CancellationToken.None);
 
         maxObserved.Should().BeLessOrEqualTo(dop, "publisher should constrain concurrency to MaxDegreeOfParallelism");
     }
@@ -81,7 +81,7 @@ public sealed class ParallelWhenAllNotificationPublisherTests
         ParallelWhenAllNotificationPublisher publisher = new();
         NotificationPublishContext context = new(NotificationFailureBehavior.ContinueAndAggregate, Environment.ProcessorCount);
 
-        Func<Task> act = () => publisher.PublishAsync(new TestNote(42), handlers, context, CancellationToken.None);
+        Func<Task> act = () => publisher.Publish(new TestNote(42), handlers, context, CancellationToken.None);
 
         FluentAssertions.Specialized.ExceptionAssertions<AggregateException> ex = await act.Should().ThrowAsync<AggregateException>();
         ex.Which.InnerExceptions.Should().HaveCount(2);
@@ -114,7 +114,7 @@ public sealed class ParallelWhenAllNotificationPublisherTests
 
         NotificationPublishContext context = new(NotificationFailureBehavior.ContinueAndLog, Environment.ProcessorCount);
 
-        await publisher.PublishAsync(new TestNote(7), handlers, context, CancellationToken.None);
+        await publisher.Publish(new TestNote(7), handlers, context, CancellationToken.None);
 
         provider.Entries.Count(e => e.Level >= LogLevel.Error && e.Exception is not null).Should().Be(2);
     }
@@ -141,7 +141,7 @@ public sealed class ParallelWhenAllNotificationPublisherTests
         ParallelWhenAllNotificationPublisher publisher = new();
         NotificationPublishContext context = new(NotificationFailureBehavior.StopOnFirstException, Environment.ProcessorCount);
 
-        Func<Task> act = () => publisher.PublishAsync(new TestNote(0), handlers, context, CancellationToken.None);
+        Func<Task> act = () => publisher.Publish(new TestNote(0), handlers, context, CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
         invoked.Should().Be(2, "sequential fallback should stop after first failure");

@@ -43,7 +43,7 @@ public sealed class ChannelNotificationPublisherTests
 
         NotificationPublishContext context = new(NotificationFailureBehavior.ContinueAndAggregate, maxDegreeOfParallelism: 4);
 
-        await publisher.PublishAsync(new TestNote(10), handlers, context, CancellationToken.None);
+        await publisher.Publish(new TestNote(10), handlers, context, CancellationToken.None);
 
         calls.Should().Be(3);
     }
@@ -75,7 +75,7 @@ public sealed class ChannelNotificationPublisherTests
 
         NotificationPublishContext context = new(NotificationFailureBehavior.ContinueAndAggregate, maxDegreeOfParallelism: 2);
 
-        Func<Task> act = () => publisher.PublishAsync(new TestNote(10), handlers, context, CancellationToken.None);
+        Func<Task> act = () => publisher.Publish(new TestNote(10), handlers, context, CancellationToken.None);
 
         FluentAssertions.Specialized.ExceptionAssertions<AggregateException> ex = await act.Should().ThrowAsync<AggregateException>();
         ex.Which.InnerExceptions.Should().HaveCount(2);
@@ -112,7 +112,7 @@ public sealed class ChannelNotificationPublisherTests
 
         NotificationPublishContext context = new(NotificationFailureBehavior.ContinueAndLog, maxDegreeOfParallelism: 2);
 
-        await publisher.PublishAsync(new TestNote(10), handlers, context, CancellationToken.None);
+        await publisher.Publish(new TestNote(10), handlers, context, CancellationToken.None);
 
         provider.Entries.Count(e => e.Level >= LogLevel.Error && e.Exception is InvalidOperationException).Should().Be(2);
     }

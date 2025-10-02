@@ -13,5 +13,5 @@ public interface INotificationHandler<in TNotification>
     /// </summary>
     /// <param name="notification">The notification instance.</param>
     /// <param name="cancellationToken">A token to observe while waiting for completion.</param>
-    Task HandleAsync(TNotification notification, CancellationToken cancellationToken = default);
+    Task Handle(TNotification notification, CancellationToken cancellationToken);
 }

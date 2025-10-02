@@ -57,4 +57,16 @@ public sealed class DualizorOptions
     /// Optional manual registration hook for Notification handlers.
     /// </summary>
     public NotificationRegistry Notifications { get; } = new NotificationRegistry();
+
+    /// <summary>
+    /// Enables startup validation when calling AddDualis. Default is enabled.
+    /// Set <see cref="StartupValidationMode"/> to <see cref="DualisValidationMode.Ignore"/> to effectively disable.
+    /// </summary>
+    public bool EnableStartupValidation { get; set; } = true;
+
+    /// <summary>
+    /// Controls how startup validation reports configuration issues.
+    /// Default is <see cref="DualisValidationMode.Throw"/>.
+    /// </summary>
+    public DualisValidationMode StartupValidationMode { get; set; } = DualisValidationMode.Throw;
 }

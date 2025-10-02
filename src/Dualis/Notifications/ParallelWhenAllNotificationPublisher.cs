@@ -15,7 +15,7 @@ public sealed class ParallelWhenAllNotificationPublisher(ILogger<ParallelWhenAll
     /// <param name="handlers">The set of handlers to invoke.</param>
     /// <param name="context">The publish context controlling failure behavior and parallelism.</param>
     /// <param name="cancellationToken">A token to observe while waiting for completion.</param>
-    public async Task PublishAsync<TNotification>(
+    public async Task Publish<TNotification>(
         TNotification notification,
         IEnumerable<INotificationHandler<TNotification>> handlers,
         NotificationPublishContext context,
@@ -34,7 +34,7 @@ public sealed class ParallelWhenAllNotificationPublisher(ILogger<ParallelWhenAll
         {
             ILogger<SequentialNotificationPublisher>? seqLogger = loggerFactory?.CreateLogger<SequentialNotificationPublisher>();
             var fallback = new SequentialNotificationPublisher(seqLogger);
-            await fallback.PublishAsync(notification, handlerList, context, cancellationToken).ConfigureAwait(false);
+            await fallback.Publish(notification, handlerList, context, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -43,7 +43,7 @@ public sealed class ParallelWhenAllNotificationPublisher(ILogger<ParallelWhenAll
         {
             ILogger<SequentialNotificationPublisher>? seqLogger = loggerFactory?.CreateLogger<SequentialNotificationPublisher>();
             var fallback = new SequentialNotificationPublisher(seqLogger);
-            await fallback.PublishAsync(notification, handlerList, context, cancellationToken).ConfigureAwait(false);
+            await fallback.Publish(notification, handlerList, context, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -70,7 +70,7 @@ public sealed class ParallelWhenAllNotificationPublisher(ILogger<ParallelWhenAll
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await handler.HandleAsync(notification, cancellationToken).ConfigureAwait(false);
+                await handler.Handle(notification, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {

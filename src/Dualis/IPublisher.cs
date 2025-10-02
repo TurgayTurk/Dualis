@@ -3,7 +3,7 @@ using Dualis.Notifications;
 namespace Dualis;
 
 /// <summary>
-/// Mediator interface dedicated to publishing notifications, similar to MediatR's <c>IPublisher</c>.
+/// Mediator interface dedicated to publishing notifications.
 /// </summary>
 public interface IPublisher
 {
@@ -12,5 +12,5 @@ public interface IPublisher
     /// </summary>
     /// <param name="notification">The notification instance.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task PublishAsync(INotification notification, CancellationToken cancellationToken = default);
+    Task Publish(INotification notification, CancellationToken cancellationToken = default);
 }

@@ -11,22 +11,22 @@ namespace Dualis.UnitTests;
 /// </summary>
 public sealed class AddDualisRegistrationFlagsTests
 {
-    public sealed record Q(int Id) : IQuery<string>;
-    public sealed class QHandler : IQueryHandler<Q, string>
+    public sealed record Q(int Id) : IRequest<string>;
+    public sealed class QHandler : IRequestHandler<Q, string>
     {
-        public Task<string> HandleAsync(Q query, CancellationToken cancellationToken = default) => Task.FromResult("ok");
+        public Task<string> Handle(Q request, CancellationToken cancellationToken) => Task.FromResult("ok");
     }
 
-    public sealed record C() : ICommand;
-    public sealed class CHandler : ICommandHandler<C>
+    public sealed record C() : IRequest;
+    public sealed class CHandler : IRequestHandler<C>
     {
-        public Task HandleAsync(C command, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task Handle(C request, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     public sealed record N() : INotification;
     public sealed class NHandler : INotificationHandler<N>
     {
-        public Task HandleAsync(N notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task Handle(N notification, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     /// <summary>
@@ -50,10 +50,10 @@ public sealed class AddDualisRegistrationFlagsTests
 
         IServiceProvider sp = services.BuildServiceProvider();
 
-        Action resolveQ = () => sp.GetRequiredService<IQueryHandler<Q, string>>();
+        Action resolveQ = () => sp.GetRequiredService<IRequestHandler<Q, string>>();
         resolveQ.Should().Throw<InvalidOperationException>();
 
-        Action resolveC = () => sp.GetRequiredService<ICommandHandler<C>>();
+        Action resolveC = () => sp.GetRequiredService<IRequestHandler<C>>();
         resolveC.Should().Throw<InvalidOperationException>();
 
         Action resolveN = () => sp.GetRequiredService<INotificationHandler<N>>();
@@ -83,8 +83,8 @@ public sealed class AddDualisRegistrationFlagsTests
 
         IServiceProvider sp = services.BuildServiceProvider();
 
-        sp.GetRequiredService<IQueryHandler<Q, string>>().Should().NotBeNull();
-        sp.GetRequiredService<ICommandHandler<C>>().Should().NotBeNull();
+        sp.GetRequiredService<IRequestHandler<Q, string>>().Should().NotBeNull();
+        sp.GetRequiredService<IRequestHandler<C>>().Should().NotBeNull();
         sp.GetRequiredService<INotificationHandler<N>>().Should().NotBeNull();
     }
 }

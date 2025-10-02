@@ -5,14 +5,22 @@ using Microsoft.CodeAnalysis;
 namespace SourceGen;
 
 /// <summary>
-/// Roslyn incremental generator that emits the default <c>Dualizor</c> mediator implementation.
-/// The generated class resolves handlers and executes pipeline behaviors for commands, queries and notifications.
+/// Roslyn incremental generator that emits the default Dualizor mediator implementation for IRequest/IRequestHandler and notifications.
 /// </summary>
 [Generator]
 public sealed class DualisGenerator : IIncrementalGenerator
 {
+    private static readonly string[] NewlineSeparators = ["\r\n", "\n", "\r"]; // CA1861
+
+    // Preserve full qualification and nullability (e.g., T?) in generated type names
+    private static readonly SymbolDisplayFormat FullyQualifiedWithNullability = new(
+        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Included,
+        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters | SymbolDisplayGenericsOptions.IncludeVariance,
+        miscellaneousOptions: SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier | SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
+
     /// <summary>
-    /// Configures the generator pipeline and registers the output callback that writes the generated mediator code.
+    /// Configures the incremental generator pipeline: reads gating, discovers handlers/behaviors, and emits the Dualizor implementation.
     /// </summary>
     /// <param name="context">The generator initialization context.</param>
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -24,28 +32,59 @@ public sealed class DualisGenerator : IIncrementalGenerator
                 {
                     return (true, string.Equals(v, "true", System.StringComparison.OrdinalIgnoreCase));
                 }
+
                 return (false, false);
+            });
+
+        IncrementalValueProvider<(bool exists, bool isTrue)> propFromTexts = context.AdditionalTextsProvider
+            .Where(static t => t.Path.EndsWith(".globalconfig", System.StringComparison.OrdinalIgnoreCase) || t.Path.EndsWith(".editorconfig", System.StringComparison.OrdinalIgnoreCase))
+            .Select(static (t, ct) => t.GetText(ct)?.ToString() ?? string.Empty)
+            .Collect()
+            .Select(static (texts, _) =>
+            {
+                const string key = "build_property.DualisEnableGenerator";
+                string? content = texts.FirstOrDefault(c => c.IndexOf(key, System.StringComparison.OrdinalIgnoreCase) >= 0);
+                if (content is null)
+                {
+                    return (false, false);
+                }
+
+                string? line = content.Split(NewlineSeparators, System.StringSplitOptions.None)
+                    .FirstOrDefault(l => l.IndexOf(key, System.StringComparison.OrdinalIgnoreCase) >= 0);
+                if (line is null)
+                {
+                    return (false, false);
+                }
+
+                int eq = line.IndexOf('=');
+                if (eq < 0)
+                {
+                    return (false, false);
+                }
+
+                string rhs = line.Substring(eq + 1).Trim();
+                bool val = string.Equals(rhs, "true", System.StringComparison.OrdinalIgnoreCase);
+                return (true, val);
             });
 
         IncrementalValueProvider<bool> enabledByAttr = context.CompilationProvider
             .Select(static (comp, _) => HasEnableAttribute(comp));
 
-        IncrementalValueProvider<bool> enabled = prop.Combine(enabledByAttr)
-            .Select(static (pair, _) =>
+        IncrementalValueProvider<bool> enabled = prop.Combine(propFromTexts).Combine(enabledByAttr)
+            .Select(static (triple, _) =>
             {
-                (bool exists, bool isTrue) = pair.Left;
-                bool byAttr = pair.Right;
-                bool byProp = exists && isTrue; // enable only when property explicitly true
+                (bool exists, bool isTrue) = triple.Left.Left;
+                (bool exists, bool isTrue) p2 = triple.Left.Right;
+                bool byAttr = triple.Right;
+                bool byProp = exists && isTrue || p2.exists && p2.isTrue;
                 return byProp || byAttr;
             });
 
-        IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> QueryHandlers, ImmutableArray<ISymbol> CommandHandlers, ImmutableArray<ISymbol> RequestHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)> handlers = SharedHandlerDiscovery.DiscoverHandlers(context);
+        IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> RequestHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)> handlers = SharedHandlerDiscovery.DiscoverHandlers(context);
 
         context.RegisterSourceOutput(handlers.Combine(enabled), static (spc, tuple) =>
         {
             ((Compilation Compilation,
-              ImmutableArray<ISymbol> QueryHandlers,
-              ImmutableArray<ISymbol> CommandHandlers,
               ImmutableArray<ISymbol> RequestHandlers,
               ImmutableArray<ISymbol> NotificationHandlers,
               ImmutableArray<ISymbol> RequestBehaviors,
@@ -56,15 +95,14 @@ public sealed class DualisGenerator : IIncrementalGenerator
                 return;
             }
 
-            // If a Dualis.Dualizor already exists (from user code or a referenced assembly), do not emit ours.
             if (source.Compilation.GetTypeByMetadataName("Dualis.Dualizor") is not null)
             {
                 return;
             }
 
-            // Only generate if the consuming project references the Dualis runtime CQRS types.
-            if (source.Compilation.GetTypeByMetadataName("Dualis.CQRS.ICommand`1") is null
-                || source.Compilation.GetTypeByMetadataName("Dualis.CQRS.IQuery`1") is null)
+            // Require IRequest/IRequestHandler presence
+            if (source.Compilation.GetTypeByMetadataName("Dualis.CQRS.IRequest") is null ||
+                source.Compilation.GetTypeByMetadataName("Dualis.CQRS.IRequestHandler`2") is null)
             {
                 return;
             }
@@ -72,7 +110,7 @@ public sealed class DualisGenerator : IIncrementalGenerator
             StringBuilder sb = new();
             sb.AppendLine("// <auto-generated />");
             sb.AppendLine("#nullable enable");
-            sb.AppendLine("#pragma warning disable CS1591, CA1812, CA1822, IDE0051, IDE0060, CS9113");
+            sb.AppendLine("#pragma warning disable CS1591, CA1812, CA1822, IDE0051, IDE0060, CS9113, CS1998");
             sb.AppendLine("using System;");
             sb.AppendLine("using System.Collections.Generic;");
             sb.AppendLine("using System.Collections.Concurrent;");
@@ -86,32 +124,163 @@ public sealed class DualisGenerator : IIncrementalGenerator
             sb.AppendLine();
             sb.AppendLine("namespace Dualis;");
             sb.AppendLine();
-            sb.AppendLine("/// <summary>");
-            sb.AppendLine("/// Default mediator/dispatcher implementation that routes commands and queries to their handlers and executes registered pipeline behaviors.");
-            sb.AppendLine("/// </summary>");
             sb.AppendLine("public sealed class Dualizor(IServiceProvider serviceProvider, INotificationPublisher publisher, NotificationPublishContext publishContext) : IDualizor, ISender, IPublisher");
             sb.AppendLine("{");
             sb.AppendLine("    private readonly ConcurrentDictionary<Type, object> behaviorCache = new();");
+            sb.AppendLine();
+            sb.AppendLine("    private static T[] ToArrayCached<T>(IEnumerable<T> source) => source is T[] arr ? arr : System.Linq.Enumerable.ToArray(source);");
+            sb.AppendLine();
 
-            // Collected handler shapes
-            sb.AppendLine("    // Collected handler shapes");
-            CollectHandlerShapes(source.CommandHandlers, "ICommandHandler", out HashSet<(string Command, string Result)> commandWithResult, out HashSet<string> commandNoResult);
-            CollectHandlerShapes(source.QueryHandlers, "IQueryHandler", out HashSet<(string Query, string Result)> queryWithResult, out HashSet<string> queryNoResult);
-            CollectNotificationShapes(source.NotificationHandlers, out HashSet<string> notifications);
-
-            // Emit methods
-            AppendGenericCommandDispatchers(sb, commandWithResult, commandNoResult);
-            AppendGenericQueryDispatchers(sb, queryWithResult, queryNoResult);
-            AppendGenericPublishDispatcher(sb, notifications);
-            AppendUnifiedSendOverloads(sb);
-
-            sb.AppendLine("    private static T[] ToArrayCached<T>(IEnumerable<T> source)");
+            // IRequest<TResponse>
+            sb.AppendLine("    public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)");
             sb.AppendLine("    {");
-            sb.AppendLine("        if (source is T[] arr) return arr;");
-            sb.AppendLine("        return System.Linq.Enumerable.ToArray(source);");
+            sb.AppendLine("        switch (request)");
+            sb.AppendLine("        {");
+            foreach (INamedTypeSymbol handler in source.RequestHandlers.OfType<INamedTypeSymbol>())
+            {
+                foreach (INamedTypeSymbol iface in handler.AllInterfaces)
+                {
+                    if (iface.Name == "IRequestHandler" && iface.TypeArguments.Length == 2)
+                    {
+                        // Skip open generic shapes
+                        bool hasTp = iface.TypeArguments.Any(static t => t is ITypeParameterSymbol);
+                        if (hasTp)
+                        {
+                            continue;
+                        }
+                        string req = iface.TypeArguments[0].ToDisplayString(FullyQualifiedWithNullability);
+                        string res = iface.TypeArguments[1].ToDisplayString(FullyQualifiedWithNullability);
+                        sb.AppendLine($"            case {req} r:");
+                        sb.AppendLine("            {");
+                        sb.AppendLine($"                IRequestHandler<{req}, {res}> h = serviceProvider.GetRequiredService<IRequestHandler<{req}, {res}>>();");
+                        sb.AppendLine($"                Type spBehType = typeof(IPipelineBehavior<{req}, {res}>);");
+                        sb.AppendLine($"                IPipelineBehavior<{req}, {res}>[] behaviors;");
+                        sb.AppendLine($"                if (!behaviorCache.TryGetValue(spBehType, out object? bCached)) behaviors = ToArrayCached(serviceProvider.GetServices<IPipelineBehavior<{req}, {res}>>()); else behaviors = (IPipelineBehavior<{req}, {res}>[])bCached;");
+                        sb.AppendLine($"                Type unBehType = typeof(IPipelineBehaviour<{req}, {res}>);");
+                        sb.AppendLine($"                IPipelineBehaviour<{req}, {res}>[] unified;");
+                        sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached)) unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{req}, {res}>>()); else unified = (IPipelineBehaviour<{req}, {res}>[])ubCached;");
+                        sb.AppendLine("                if (behaviors.Length == 0 && unified.Length == 0)");
+                        sb.AppendLine("                {");
+                        sb.AppendLine("                    var r0 = await h.Handle(r, cancellationToken);");
+                        sb.AppendLine("                    return (TResponse)(object)r0!;");
+                        sb.AppendLine("                }");
+                        sb.AppendLine($"                RequestHandlerDelegate<{res}> next = ct => h.Handle(r, ct);");
+                        sb.AppendLine("                for (int i = behaviors.Length - 1; i >= 0; i--) { var b = behaviors[i]; var current = next; next = ct => b.Handle(r, current, ct); }");
+                        sb.AppendLine("                for (int i = unified.Length - 1; i >= 0; i--) { var b = unified[i]; var current = next; next = ct => b.Handle(r, current, ct); }");
+                        sb.AppendLine("                var result = await next(cancellationToken);");
+                        sb.AppendLine("                return (TResponse)(object)result!;");
+                        sb.AppendLine("            }");
+                    }
+                }
+            }
+            sb.AppendLine("            default:");
+            sb.AppendLine("                throw new InvalidOperationException($\"Unknown request type: {request.GetType().FullName}\");");
+            sb.AppendLine("        }");
             sb.AppendLine("    }");
+            sb.AppendLine();
+
+            // IRequest (void)
+            sb.AppendLine("    public async Task Send(IRequest request, CancellationToken cancellationToken = default)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        switch (request)");
+            sb.AppendLine("        {");
+            foreach (INamedTypeSymbol handler in source.RequestHandlers.OfType<INamedTypeSymbol>())
+            {
+                foreach (INamedTypeSymbol iface in handler.AllInterfaces)
+                {
+                    if (iface.Name == "IRequestHandler" && iface.TypeArguments.Length == 1)
+                    {
+                        // Skip open generic shapes
+                        bool hasTp = iface.TypeArguments.Any(static t => t is ITypeParameterSymbol);
+                        if (hasTp)
+                        {
+                            continue;
+                        }
+                        string req = iface.TypeArguments[0].ToDisplayString(FullyQualifiedWithNullability);
+                        sb.AppendLine($"            case {req} r:");
+                        sb.AppendLine("            {");
+                        sb.AppendLine($"                IRequestHandler<{req}> h = serviceProvider.GetRequiredService<IRequestHandler<{req}>>();");
+                        sb.AppendLine($"                Type spBehType = typeof(IPipelineBehavior<{req}>);");
+                        sb.AppendLine($"                IPipelineBehavior<{req}>[] behaviors;");
+                        sb.AppendLine($"                if (!behaviorCache.TryGetValue(spBehType, out object? bCached)) behaviors = ToArrayCached(serviceProvider.GetServices<IPipelineBehavior<{req}>>()); else behaviors = (IPipelineBehavior<{req}>[])bCached;");
+                        sb.AppendLine($"                Type unBehType = typeof(IPipelineBehaviour<{req}, Unit>);");
+                        sb.AppendLine($"                IPipelineBehaviour<{req}, Unit>[] unified;");
+                        sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached)) unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{req}, Unit>>()); else unified = (IPipelineBehaviour<{req}, Unit>[])ubCached;");
+                        sb.AppendLine("                if (behaviors.Length == 0 && unified.Length == 0)");
+                        sb.AppendLine("                {");
+                        sb.AppendLine("                    await h.Handle(r, cancellationToken);");
+                        sb.AppendLine("                    return;");
+                        sb.AppendLine("                }");
+                        sb.AppendLine($"                RequestHandlerDelegate next = ct => h.Handle(r, ct);");
+                        sb.AppendLine("                for (int i = behaviors.Length - 1; i >= 0; i--) { var b = behaviors[i]; var current = next; next = ct => b.Handle(r, current, ct); }");
+                        sb.AppendLine("                for (int i = unified.Length - 1; i >= 0; i--) { var b = unified[i]; RequestHandlerDelegate<Unit> current = ct => { next(ct); return Task.FromResult(Unit.Value); }; RequestHandlerDelegate<Unit> wrapped = ct => b.Handle(r, current, ct); next = async ct => { await wrapped(ct); }; }");
+                        sb.AppendLine("                await next(cancellationToken);");
+                        sb.AppendLine("                return;");
+                        sb.AppendLine("            }");
+                    }
+                }
+            }
+            sb.AppendLine("            default:");
+            sb.AppendLine("                throw new InvalidOperationException($\"Unknown request type: {request.GetType().FullName}\");");
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+            sb.AppendLine();
+
+            // Publish
+            sb.AppendLine("    public async Task Publish(INotification notification, CancellationToken cancellationToken = default)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        _ = publisher; _ = publishContext;");
+            if (source.NotificationHandlers.Length > 0)
+            {
+                sb.AppendLine("        switch (notification)");
+                sb.AppendLine("        {");
+                foreach (INamedTypeSymbol handler in source.NotificationHandlers.OfType<INamedTypeSymbol>())
+                {
+                    foreach (INamedTypeSymbol iface in handler.AllInterfaces)
+                    {
+                        if (iface.Name == "INotificationHandler" && iface.TypeArguments.Length == 1)
+                        {
+                            // Skip open generic shapes
+                            bool hasTp = iface.TypeArguments.Any(static t => t is ITypeParameterSymbol);
+                            if (hasTp)
+                            {
+                                continue;
+                            }
+                            string note = iface.TypeArguments[0].ToDisplayString(FullyQualifiedWithNullability);
+                            sb.AppendLine($"            case {note} n:");
+                            sb.AppendLine("            {");
+                            sb.AppendLine($"                IEnumerable<INotificationHandler<{note}>> handlers = serviceProvider.GetServices<INotificationHandler<{note}>>();");
+                            sb.AppendLine($"                Type unBehType = typeof(IPipelineBehaviour<{note}, Unit>);");
+                            sb.AppendLine($"                IPipelineBehaviour<{note}, Unit>[] unified;");
+                            sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached)) unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{note}, Unit>>()); else unified = (IPipelineBehaviour<{note}, Unit>[])ubCached;");
+                            sb.AppendLine("                if (unified.Length == 0)");
+                            sb.AppendLine("                {");
+                            sb.AppendLine("                    await publisher.Publish(n, handlers, publishContext, cancellationToken);");
+                            sb.AppendLine("                    return;");
+                            sb.AppendLine("                }");
+                            sb.AppendLine("                NotificationPublishDelegate next = ct => publisher.Publish(n, handlers, publishContext, ct);");
+                            sb.AppendLine("                for (int i = unified.Length - 1; i >= 0; i--)");
+                            sb.AppendLine("                { var b = unified[i]; RequestHandlerDelegate<Unit> current = ct => { var t = next(ct); return t.ContinueWith(_ => Unit.Value, ct); }; RequestHandlerDelegate<Unit> wrapped = ct => b.Handle(n, current, ct); next = async ct => { await wrapped(ct); }; }");
+                            sb.AppendLine("                await next(cancellationToken);");
+                            sb.AppendLine("                return;");
+                            sb.AppendLine("            }");
+                        }
+                    }
+                }
+                sb.AppendLine("            default:");
+                sb.AppendLine("                // Unknown notification type: no handlers discovered; no-op to avoid unexpected exceptions.");
+                sb.AppendLine("                return;");
+                sb.AppendLine("        }");
+            }
+            else
+            {
+                sb.AppendLine("        await Task.CompletedTask;");
+            }
+            sb.AppendLine("    }");
+            sb.AppendLine();
+
             sb.AppendLine("}");
-            sb.AppendLine("#pragma warning restore CS1591, CA1812, CA1822, IDE0051, IDE0060, CS9113");
+            sb.AppendLine("#pragma warning restore CS1591, CA1812, CA1822, IDE0051, IDE0060, CS9113, CS1998");
 
             spc.AddSource("Dualizor.g.cs", sb.ToString());
         });
@@ -125,404 +294,9 @@ public sealed class DualisGenerator : IIncrementalGenerator
             {
                 return false;
             }
+
             string name = cls.Name;
             string ns = cls.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             return (name == "EnableDualisGenerationAttribute" || name == "EnableDualisGeneration") && ns == "global::Dualis";
         });
-
-    /// <summary>
-    /// Collects implemented handler shapes for a given handler interface name on a set of symbols.
-    /// Skips open generic shapes (type parameters).
-    /// </summary>
-    /// <param name="symbols">Discovered type symbols.</param>
-    /// <param name="handlerInterfaceName">The handler interface short name (e.g., <c>ICommandHandler</c>).</param>
-    /// <param name="withResult">The set of input/result tuples for two-parameter handler forms.</param>
-    /// <param name="noResult">The set of input types for single-parameter handler forms.</param>
-    private static void CollectHandlerShapes(
-        ImmutableArray<ISymbol> symbols,
-        string handlerInterfaceName,
-        out HashSet<(string InputType, string ResultType)> withResult,
-        out HashSet<string> noResult)
-    {
-        withResult = [];
-        noResult = [];
-
-        foreach (ISymbol symbol in symbols.Distinct(SymbolEqualityComparer.Default))
-        {
-            if (symbol is not INamedTypeSymbol named)
-            {
-                continue;
-            }
-
-            foreach (INamedTypeSymbol iface in named.AllInterfaces)
-            {
-                if (iface.Name != handlerInterfaceName)
-                {
-                    continue;
-                }
-
-                if (iface.TypeArguments.Length == 2)
-                {
-                    if (iface.TypeArguments[0] is ITypeParameterSymbol || iface.TypeArguments[1] is ITypeParameterSymbol)
-                    {
-                        continue;
-                    }
-                    string input = iface.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    string result = iface.TypeArguments[1].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    withResult.Add((input, result));
-                }
-                else if (iface.TypeArguments.Length == 1)
-                {
-                    if (iface.TypeArguments[0] is ITypeParameterSymbol)
-                    {
-                        continue;
-                    }
-                    string input = iface.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    noResult.Add(input);
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Collects notification input shapes for discovered notification handlers.
-    /// Skips open generic shapes (type parameters) to avoid invalid references in generated code.
-    /// </summary>
-    /// <param name="symbols">Discovered type symbols.</param>
-    /// <param name="notifications">The set of notification input types.</param>
-    private static void CollectNotificationShapes(
-        ImmutableArray<ISymbol> symbols,
-        out HashSet<string> notifications)
-    {
-        notifications = [];
-        foreach (ISymbol symbol in symbols.Distinct(SymbolEqualityComparer.Default))
-        {
-            if (symbol is not INamedTypeSymbol named)
-            {
-                continue;
-            }
-
-            foreach (INamedTypeSymbol iface in named.AllInterfaces)
-            {
-                if (iface.Name == "INotificationHandler" && iface.TypeArguments.Length == 1)
-                {
-                    if (iface.TypeArguments[0] is ITypeParameterSymbol)
-                    {
-                        continue;
-                    }
-                    string input = iface.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    notifications.Add(input);
-                }
-            }
-        }
-    }
-
-    // Methods that append generated dispatcher members follow. XML docs are provided inline in the emitted code.
-    private static void AppendGenericCommandDispatchers(
-        StringBuilder sb,
-        HashSet<(string Command, string Result)> commandWithResult,
-        HashSet<string> commandNoResult)
-    {
-        // ICommand<TResponse>
-        if (commandWithResult.Count > 0)
-        {
-            sb.AppendLine("    /// <inheritdoc />");
-            sb.AppendLine("    public async Task<TResponse> CommandAsync<TResponse>(ICommand<TResponse> command, CancellationToken cancellationToken = default)");
-            sb.AppendLine("    {");
-            sb.AppendLine("        switch (command)");
-            sb.AppendLine("        {");
-            foreach ((string Command, string Result) in commandWithResult)
-            {
-                sb.AppendLine($"            case {Command} c:");
-                sb.AppendLine("            {");
-                sb.AppendLine($"                ICommandHandler<{Command}, {Result}> handler = serviceProvider.GetRequiredService<ICommandHandler<{Command}, {Result}>>();");
-                sb.AppendLine($"                Type spBehType = typeof(IPipelineBehavior<{Command}, {Result}>);");
-                sb.AppendLine($"                IPipelineBehavior<{Command}, {Result}>[] behaviors;");
-                sb.AppendLine($"                if (!behaviorCache.TryGetValue(spBehType, out object? bCached))");
-                sb.AppendLine("                {");
-                sb.AppendLine($"                    behaviors = ToArrayCached(serviceProvider.GetServices<IPipelineBehavior<{Command}, {Result}>>());");
-                sb.AppendLine($"                    behaviorCache[spBehType] = behaviors;");
-                sb.AppendLine("                }");
-                sb.AppendLine("                else behaviors = (IPipelineBehavior<" + Command + ", " + Result + ">[])bCached;");
-                sb.AppendLine($"                Type unBehType = typeof(IPipelineBehaviour<{Command}, {Result}>);");
-                sb.AppendLine($"                IPipelineBehaviour<{Command}, {Result}>[] unified;");
-                sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached))");
-                sb.AppendLine("                {");
-                sb.AppendLine($"                    unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{Command}, {Result}>>());");
-                sb.AppendLine($"                    behaviorCache[unBehType] = unified;");
-                sb.AppendLine("                }");
-                sb.AppendLine("                else unified = (IPipelineBehaviour<" + Command + ", " + Result + ">[])ubCached;");
-                sb.AppendLine("                if (behaviors.Length == 0 && unified.Length == 0)");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    " + Result + " r0 = await handler.HandleAsync(c, cancellationToken);");
-                sb.AppendLine("                    return (TResponse)(object)r0;");
-                sb.AppendLine("                }");
-                sb.AppendLine($"                RequestHandlerDelegate<{Result}> next = ct => handler.HandleAsync(c, ct);");
-                sb.AppendLine("                for (int i = behaviors.Length - 1; i >= 0; i--)");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    var b = behaviors[i]; var currentNext = next; next = ct => b.Handle(c, currentNext, ct);");
-                sb.AppendLine("                }");
-                sb.AppendLine("                for (int i = unified.Length - 1; i >= 0; i--)");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    var b = unified[i]; var currentNext = next; next = ct => b.Handle(c, currentNext, ct);");
-                sb.AppendLine("                }");
-                sb.AppendLine("                " + Result + " result = await next(cancellationToken);");
-                sb.AppendLine("                return (TResponse)(object)result;");
-                sb.AppendLine("            }");
-            }
-            sb.AppendLine("            default:");
-            sb.AppendLine("                throw new InvalidOperationException(\"Unknown command type: {command.GetType().Name}\");");
-            sb.AppendLine("        }");
-            sb.AppendLine("    }");
-        }
-        else
-        {
-            sb.AppendLine("    public Task<TResponse> CommandAsync<TResponse>(ICommand<TResponse> command, CancellationToken cancellationToken = default) => Task.FromException<TResponse>(new InvalidOperationException(\"Unknown command type: {command.GetType().Name}\"));");
-        }
-        sb.AppendLine();
-
-        // ICommand (no result)
-        if (commandNoResult.Count > 0)
-        {
-            sb.AppendLine("    /// <inheritdoc />");
-            sb.AppendLine("    public async Task CommandAsync(ICommand command, CancellationToken cancellationToken = default)");
-            sb.AppendLine("    {");
-            sb.AppendLine("        switch (command)");
-            sb.AppendLine("        {");
-            foreach (string Command in commandNoResult)
-            {
-                sb.AppendLine($"            case {Command} c:");
-                sb.AppendLine("            {");
-                sb.AppendLine($"                ICommandHandler<{Command}> handler = serviceProvider.GetRequiredService<ICommandHandler<{Command}>>();");
-                sb.AppendLine($"                Type spBehType = typeof(IPipelineBehavior<{Command}>);");
-                sb.AppendLine($"                IPipelineBehavior<{Command}>[] behaviors;");
-                sb.AppendLine($"                if (!behaviorCache.TryGetValue(spBehType, out object? bCached))");
-                sb.AppendLine("                {");
-                sb.AppendLine($"                    behaviors = ToArrayCached(serviceProvider.GetServices<IPipelineBehavior<{Command}>>());");
-                sb.AppendLine($"                    behaviorCache[spBehType] = behaviors;");
-                sb.AppendLine("                }");
-                sb.AppendLine("                else behaviors = (IPipelineBehavior<" + Command + ">[])bCached;");
-                sb.AppendLine($"                Type unBehType = typeof(IPipelineBehaviour<{Command}, Unit>);");
-                sb.AppendLine($"                IPipelineBehaviour<{Command}, Unit>[] unified;");
-                sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached))");
-                sb.AppendLine("                {");
-                sb.AppendLine($"                    unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{Command}, Unit>>());");
-                sb.AppendLine($"                    behaviorCache[unBehType] = unified;");
-                sb.AppendLine("                }");
-                sb.AppendLine("                else unified = (IPipelineBehaviour<" + Command + ", Unit>[])ubCached;");
-                sb.AppendLine("                if (behaviors.Length == 0 && unified.Length == 0)");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    await handler.HandleAsync(c, cancellationToken);");
-                sb.AppendLine("                    return;");
-                sb.AppendLine("                }");
-                sb.AppendLine($"                RequestHandlerDelegate next = ct => handler.HandleAsync(c, ct);");
-                sb.AppendLine("                for (int i = behaviors.Length - 1; i >= 0; i--)");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    var b = behaviors[i]; var currentNext = next; next = ct => b.Handle(c, currentNext, ct);");
-                sb.AppendLine("                }");
-                sb.AppendLine("                for (int i = unified.Length - 1; i >= 0; i--)");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    var b = unified[i];");
-                sb.AppendLine("                    RequestHandlerDelegate<Unit> currentNext = ct => { next(ct); return Task.FromResult(Unit.Value); };");
-                sb.AppendLine("                    RequestHandlerDelegate<Unit> wrapped = ct => b.Handle(c, currentNext, ct);");
-                sb.AppendLine("                    next = async ct => { await wrapped(ct); };");
-                sb.AppendLine("                }");
-                sb.AppendLine("                await next(cancellationToken);");
-                sb.AppendLine("                return;");
-                sb.AppendLine("            }");
-            }
-            sb.AppendLine("            default:");
-            sb.AppendLine("                throw new InvalidOperationException(\"Unknown command type: {command.GetType().Name}\");");
-            sb.AppendLine("        }");
-            sb.AppendLine("    }");
-        }
-        else
-        {
-            sb.AppendLine("    public Task CommandAsync(ICommand command, CancellationToken cancellationToken = default) => Task.FromException(new InvalidOperationException(\"Unknown command type: {command.GetType().Name}\"));");
-        }
-        sb.AppendLine();
-    }
-
-    private static void AppendGenericQueryDispatchers(
-        StringBuilder sb,
-        HashSet<(string Query, string Result)> queryWithResult,
-        HashSet<string> queryNoResult)
-    {
-        // IQuery<TResponse>
-        if (queryWithResult.Count > 0)
-        {
-            sb.AppendLine("    /// <inheritdoc />");
-            sb.AppendLine("    public async Task<TResponse> QueryAsync<TResponse>(IQuery<TResponse> query, CancellationToken cancellationToken = default)");
-            sb.AppendLine("    {");
-            sb.AppendLine("        switch (query)");
-            sb.AppendLine("        {");
-            foreach ((string Query, string Result) in queryWithResult)
-            {
-                sb.AppendLine($"            case {Query} qy:");
-                sb.AppendLine("            {");
-                sb.AppendLine($"                IQueryHandler<{Query}, {Result}> handler = serviceProvider.GetRequiredService<IQueryHandler<{Query}, {Result}>>();");
-                sb.AppendLine($"                Type spBehType = typeof(IPipelineBehavior<{Query}, {Result}>);");
-                sb.AppendLine($"                IPipelineBehavior<{Query}, {Result}>[] behaviors;");
-                sb.AppendLine($"                if (!behaviorCache.TryGetValue(spBehType, out object? bCached))");
-                sb.AppendLine("                {");
-                sb.AppendLine($"                    behaviors = ToArrayCached(serviceProvider.GetServices<IPipelineBehavior<{Query}, {Result}>>());");
-                sb.AppendLine($"                    behaviorCache[spBehType] = behaviors;");
-                sb.AppendLine("                }");
-                sb.AppendLine("                else behaviors = (IPipelineBehavior<" + Query + ", " + Result + ">[])bCached;");
-                sb.AppendLine($"                Type unBehType = typeof(IPipelineBehaviour<{Query}, {Result}>);");
-                sb.AppendLine($"                IPipelineBehaviour<{Query}, {Result}>[] unified;");
-                sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached))");
-                sb.AppendLine("                {");
-                sb.AppendLine($"                    unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{Query}, {Result}>>());");
-                sb.AppendLine($"                    behaviorCache[unBehType] = unified;");
-                sb.AppendLine("                }");
-                sb.AppendLine("                else unified = (IPipelineBehaviour<" + Query + ", " + Result + ">[])ubCached;");
-                sb.AppendLine("                if (behaviors.Length == 0 && unified.Length == 0)");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    " + Result + " r0 = await handler.HandleAsync(qy, cancellationToken);");
-                sb.AppendLine("                    return (TResponse)(object)r0;");
-                sb.AppendLine("                }");
-                sb.AppendLine($"                RequestHandlerDelegate<{Result}> next = ct => handler.HandleAsync(qy, ct);");
-                sb.AppendLine("                for (int i = behaviors.Length - 1; i >= 0; i--)");
-                sb.AppendLine("                { var b = behaviors[i]; var currentNext = next; next = ct => b.Handle(qy, currentNext, ct); }");
-                sb.AppendLine("                for (int i = unified.Length - 1; i >= 0; i--)");
-                sb.AppendLine("                { var b = unified[i]; var currentNext = next; next = ct => b.Handle(qy, currentNext, ct); }");
-                sb.AppendLine("                " + Result + " result = await next(cancellationToken);");
-                sb.AppendLine("                return (TResponse)(object)result;");
-                sb.AppendLine("            }");
-            }
-            sb.AppendLine("            default:");
-            sb.AppendLine("                throw new InvalidOperationException(\"Unknown query type: {query.GetType().Name}\");");
-            sb.AppendLine("        }");
-            sb.AppendLine("    }");
-        }
-        else
-        {
-            sb.AppendLine("    public Task<TResponse> QueryAsync<TResponse>(IQuery<TResponse> query, CancellationToken cancellationToken = default) => Task.FromException<TResponse>(new InvalidOperationException(\"Unknown query type: {query.GetType().Name}\"));");
-        }
-        sb.AppendLine();
-
-        // IQuery (no result)
-        if (queryNoResult.Count > 0)
-        {
-            sb.AppendLine("    /// <inheritdoc />");
-            sb.AppendLine("    public async Task QueryAsync(IQuery query, CancellationToken cancellationToken = default)");
-            sb.AppendLine("    {");
-            sb.AppendLine("        switch (query)");
-            sb.AppendLine("        {");
-            foreach (string Query in queryNoResult)
-            {
-                sb.AppendLine($"            case {Query} qy:");
-                sb.AppendLine("            {");
-                sb.AppendLine($"                IQueryHandler<{Query}> handler = serviceProvider.GetRequiredService<IQueryHandler<{Query}>>();");
-                sb.AppendLine($"                Type spBehType = typeof(IPipelineBehavior<{Query}>);");
-                sb.AppendLine($"                IPipelineBehavior<{Query}>[] behaviors;");
-                sb.AppendLine($"                if (!behaviorCache.TryGetValue(spBehType, out object? bCached))");
-                sb.AppendLine("                {");
-                sb.AppendLine($"                    behaviors = ToArrayCached(serviceProvider.GetServices<IPipelineBehavior<{Query}>>());");
-                sb.AppendLine($"                    behaviorCache[spBehType] = behaviors;");
-                sb.AppendLine("                }");
-                sb.AppendLine("                else behaviors = (IPipelineBehavior<" + Query + ">[])bCached;");
-                sb.AppendLine($"                Type unBehType = typeof(IPipelineBehaviour<{Query}, Unit>);");
-                sb.AppendLine($"                IPipelineBehaviour<{Query}, Unit>[] unified;");
-                sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached))");
-                sb.AppendLine("                {");
-                sb.AppendLine($"                    unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{Query}, Unit>>());");
-                sb.AppendLine($"                    behaviorCache[unBehType] = unified;");
-                sb.AppendLine("                }");
-                sb.AppendLine("                else unified = (IPipelineBehaviour<" + Query + ", Unit>[])ubCached;");
-                sb.AppendLine("                if (behaviors.Length == 0 && unified.Length == 0)");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    await handler.HandleAsync(qy, cancellationToken);");
-                sb.AppendLine("                    return;");
-                sb.AppendLine("                }");
-                sb.AppendLine($"                RequestHandlerDelegate next = ct => handler.HandleAsync(qy, ct);");
-                sb.AppendLine("                for (int i = behaviors.Length - 1; i >= 0; i--)");
-                sb.AppendLine("                { var b = behaviors[i]; var currentNext = next; next = ct => b.Handle(qy, currentNext, ct); }");
-                sb.AppendLine("                for (int i = unified.Length - 1; i >= 0; i--)");
-                sb.AppendLine("                { var b = unified[i]; RequestHandlerDelegate<Unit> currentNext = ct => { next(ct); return Task.FromResult(Unit.Value); }; RequestHandlerDelegate<Unit> wrapped = ct => b.Handle(qy, currentNext, ct); next = async ct => { await wrapped(ct); }; }");
-                sb.AppendLine("                await next(cancellationToken);");
-                sb.AppendLine("                return;");
-                sb.AppendLine("            }");
-            }
-            sb.AppendLine("            default:");
-            sb.AppendLine("                throw new InvalidOperationException(\"Unknown query type: {query.GetType().Name}\");");
-            sb.AppendLine("        }");
-            sb.AppendLine("    }");
-        }
-        else
-        {
-            sb.AppendLine("    public Task QueryAsync(IQuery query, CancellationToken cancellationToken = default) => Task.FromException(new InvalidOperationException(\"Unknown query type: {query.GetType().Name}\"));");
-        }
-        sb.AppendLine();
-    }
-
-    private static void AppendGenericPublishDispatcher(StringBuilder sb, HashSet<string> notifications)
-    {
-        sb.AppendLine("    /// <inheritdoc />");
-        sb.AppendLine("    public async Task PublishAsync(INotification notification, CancellationToken cancellationToken = default)");
-        sb.AppendLine("    {");
-        sb.AppendLine("        _ = publisher; _ = publishContext;");
-        if (notifications.Count > 0)
-        {
-            sb.AppendLine("        switch (notification)");
-            sb.AppendLine("        {");
-            foreach (string n in notifications)
-            {
-                sb.AppendLine($"            case {n} note:");
-                sb.AppendLine("            {");
-                sb.AppendLine($"                IEnumerable<INotificationHandler<{n}>> handlers = serviceProvider.GetServices<INotificationHandler<{n}>>();");
-                sb.AppendLine($"                Type unBehType = typeof(IPipelineBehaviour<{n}, Unit>);");
-                sb.AppendLine($"                IPipelineBehaviour<{n}, Unit>[] unified;");
-                sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached))");
-                sb.AppendLine("                {");
-                sb.AppendLine($"                    unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{n}, Unit>>());");
-                sb.AppendLine($"                    behaviorCache[unBehType] = unified;");
-                sb.AppendLine("                }");
-                sb.AppendLine("                else unified = (IPipelineBehaviour<" + n + ", Unit>[])ubCached;");
-                sb.AppendLine("                if (unified.Length == 0)");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    await publisher.PublishAsync(note, handlers, publishContext, cancellationToken);");
-                sb.AppendLine("                    return;");
-                sb.AppendLine("                }");
-                sb.AppendLine("                NotificationPublishDelegate next = ct => publisher.PublishAsync(note, handlers, publishContext, ct);");
-                sb.AppendLine("                for (int i = unified.Length - 1; i >= 0; i--)");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    var b = unified[i];");
-                sb.AppendLine("                    RequestHandlerDelegate<Unit> currentNext = ct => { var t = next(ct); return t.ContinueWith(_ => Unit.Value, ct); };");
-                sb.AppendLine("                    RequestHandlerDelegate<Unit> wrapped = ct => b.Handle(note, currentNext, ct);");
-                sb.AppendLine("                    next = async ct => { await wrapped(ct); };");
-                sb.AppendLine("                }");
-                sb.AppendLine("                await next(cancellationToken);");
-                sb.AppendLine("                return;");
-                sb.AppendLine("            }");
-            }
-            sb.AppendLine("            default:");
-            sb.AppendLine("                // Unknown notification type: no handlers discovered; no-op to avoid unexpected exceptions.");
-            sb.AppendLine("                return;");
-            sb.AppendLine("        }");
-        }
-        else
-        {
-            sb.AppendLine("        await Task.CompletedTask;");
-        }
-        sb.AppendLine("    }");
-        sb.AppendLine();
-    }
-
-    private static void AppendUnifiedSendOverloads(StringBuilder sb)
-    {
-        // Async-first
-        sb.AppendLine("    public Task<TResponse> SendAsync<TResponse>(ICommand<TResponse> command, CancellationToken cancellationToken = default) => CommandAsync(command, cancellationToken);");
-        sb.AppendLine("    public Task SendAsync(ICommand command, CancellationToken cancellationToken = default) => CommandAsync(command, cancellationToken);");
-        sb.AppendLine("    public Task<TResponse> SendAsync<TResponse>(IQuery<TResponse> query, CancellationToken cancellationToken = default) => QueryAsync(query, cancellationToken);");
-        sb.AppendLine("    public Task SendAsync(IQuery query, CancellationToken cancellationToken = default) => QueryAsync(query, cancellationToken);");
-        sb.AppendLine();
-        // Migration-friendly .Send overloads
-        sb.AppendLine("    public Task<TResponse> Send<TResponse>(ICommand<TResponse> command, CancellationToken cancellationToken = default) => CommandAsync(command, cancellationToken);");
-        sb.AppendLine("    public Task Send(ICommand command, CancellationToken cancellationToken = default) => CommandAsync(command, cancellationToken);");
-        sb.AppendLine("    public Task<TResponse> Send<TResponse>(IQuery<TResponse> query, CancellationToken cancellationToken = default) => QueryAsync(query, cancellationToken);");
-        sb.AppendLine("    public Task Send(IQuery query, CancellationToken cancellationToken = default) => QueryAsync(query, cancellationToken);");
-        sb.AppendLine();
-    }
 }

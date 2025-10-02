@@ -13,7 +13,7 @@ public interface INotificationPublisher
     /// <param name="handlers">The handlers to invoke for the notification.</param>
     /// <param name="context">Context controlling failure behavior and parallelism.</param>
     /// <param name="cancellationToken">A token to observe while waiting for completion.</param>
-    Task PublishAsync<TNotification>(
+    Task Publish<TNotification>(
         TNotification notification,
         IEnumerable<INotificationHandler<TNotification>> handlers,
         NotificationPublishContext context,

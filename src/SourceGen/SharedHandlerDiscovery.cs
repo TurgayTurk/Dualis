@@ -13,13 +13,13 @@ internal static class SharedHandlerDiscovery
 {
     /// <summary>
     /// Configures syntax and semantic transforms that discover types implementing
-    /// <c>IQueryHandler</c>, <c>ICommandHandler</c>, <c>IRequestHandler</c>, <c>INotificationHandler</c>, and pipeline behaviors.
+    /// <c>IRequestHandler</c>, <c>INotificationHandler</c>, and pipeline behaviors.
     /// </summary>
     /// <param name="context">The incremental generator initialization context.</param>
     /// <returns>
     /// A provider that yields the compilation and the collected handler/behavior symbols.
     /// </returns>
-    public static IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> QueryHandlers, ImmutableArray<ISymbol> CommandHandlers, ImmutableArray<ISymbol> RequestHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)>
+    public static IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> RequestHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)>
         DiscoverHandlers(IncrementalGeneratorInitializationContext context)
     {
         IncrementalValuesProvider<INamedTypeSymbol> candidateTypes = context.SyntaxProvider
@@ -37,59 +37,159 @@ internal static class SharedHandlerDiscovery
             Compilation compilation = tuple.Item1;
             ImmutableArray<INamedTypeSymbol> types = tuple.Item2;
 
-            ImmutableArray<ISymbol>.Builder queryHandlers = ImmutableArray.CreateBuilder<ISymbol>();
-            ImmutableArray<ISymbol>.Builder commandHandlers = ImmutableArray.CreateBuilder<ISymbol>();
             ImmutableArray<ISymbol>.Builder requestHandlers = ImmutableArray.CreateBuilder<ISymbol>();
             ImmutableArray<ISymbol>.Builder notificationHandlers = ImmutableArray.CreateBuilder<ISymbol>();
             ImmutableArray<ISymbol>.Builder requestBehaviors = ImmutableArray.CreateBuilder<ISymbol>();
             ImmutableArray<ISymbol>.Builder voidBehaviors = ImmutableArray.CreateBuilder<ISymbol>();
             ImmutableArray<ISymbol>.Builder notificationBehaviors = ImmutableArray.CreateBuilder<ISymbol>();
 
-            foreach (INamedTypeSymbol type in types)
+            // In-project discovery (current behavior)
+            ClassifyHandlersAndBehaviors(types, requestHandlers,
+                notificationHandlers, requestBehaviors, voidBehaviors, notificationBehaviors);
+
+            // Cross-assembly discovery (new): scan referenced assemblies for public, non-abstract classes
+            foreach (MetadataReference reference in compilation.References)
             {
-                foreach (INamedTypeSymbol iface in type.AllInterfaces)
+                ISymbol? symbol = compilation.GetAssemblyOrModuleSymbol(reference);
+                if (symbol is not IAssemblySymbol asm)
                 {
-                    string ns = iface.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    if (iface.Name == "IQueryHandler" && ns == "global::Dualis.CQRS")
+                    continue;
+                }
+
+                // Skip self if ever encountered
+                if (SymbolEqualityComparer.Default.Equals(asm, compilation.Assembly))
+                {
+                    continue;
+                }
+
+                foreach (INamedTypeSymbol type in EnumerateAllTypes(asm))
+                {
+                    if (type.TypeKind != TypeKind.Class || type.IsAbstract)
                     {
-                        queryHandlers.Add(type);
+                        continue;
                     }
-                    else if (iface.Name == "ICommandHandler" && ns == "global::Dualis.CQRS")
+
+                    // Only include symbols that are safely accessible from this compilation.
+                    // Keep it strict to avoid accessibility errors in generated code: require effective public visibility.
+                    if (!IsEffectivelyPublic(type))
                     {
-                        commandHandlers.Add(type);
+                        continue;
                     }
-                    else if (iface.Name == "IRequestHandler" && ns == "global::Dualis.CQRS")
-                    {
-                        requestHandlers.Add(type);
-                    }
-                    else if (iface.Name == "INotificationHandler" && ns == "global::Dualis.Notifications")
-                    {
-                        notificationHandlers.Add(type);
-                    }
-                    else if (ns == "global::Dualis.Pipeline" && iface.TypeArguments.Length == 2 && (iface.Name == "IPipelineBehavior" || iface.Name == "IPipelineBehaviour"))
-                    {
-                        requestBehaviors.Add(type);
-                    }
-                    else if (iface.Name == "IPipelineBehavior" && ns == "global::Dualis.Pipeline" && iface.TypeArguments.Length == 1)
-                    {
-                        voidBehaviors.Add(type);
-                    }
-                    else if (iface.Name == "INotificationBehavior" && ns == "global::Dualis.Pipeline" && iface.TypeArguments.Length == 1)
-                    {
-                        notificationBehaviors.Add(type);
-                    }
+
+                    ClassifySingleType(type, requestHandlers,
+                        notificationHandlers, requestBehaviors, voidBehaviors, notificationBehaviors);
                 }
             }
 
             return (
                 compilation,
-                queryHandlers.ToImmutable(),
-                commandHandlers.ToImmutable(),
                 requestHandlers.ToImmutable(),
                 notificationHandlers.ToImmutable(),
                 requestBehaviors.ToImmutable(),
                 voidBehaviors.ToImmutable(),
                 notificationBehaviors.ToImmutable());
         });
+    }
+
+    private static void ClassifyHandlersAndBehaviors(
+        ImmutableArray<INamedTypeSymbol> types,
+        ImmutableArray<ISymbol>.Builder requestHandlers,
+        ImmutableArray<ISymbol>.Builder notificationHandlers,
+        ImmutableArray<ISymbol>.Builder requestBehaviors,
+        ImmutableArray<ISymbol>.Builder voidBehaviors,
+        ImmutableArray<ISymbol>.Builder notificationBehaviors)
+    {
+        foreach (INamedTypeSymbol type in types)
+        {
+            ClassifySingleType(type, requestHandlers,
+                notificationHandlers, requestBehaviors, voidBehaviors, notificationBehaviors);
+        }
+    }
+
+    private static void ClassifySingleType(
+        INamedTypeSymbol type,
+        ImmutableArray<ISymbol>.Builder requestHandlers,
+        ImmutableArray<ISymbol>.Builder notificationHandlers,
+        ImmutableArray<ISymbol>.Builder requestBehaviors,
+        ImmutableArray<ISymbol>.Builder voidBehaviors,
+        ImmutableArray<ISymbol>.Builder notificationBehaviors)
+    {
+        foreach (INamedTypeSymbol iface in type.AllInterfaces)
+        {
+            string ns = iface.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            if (iface.Name == "IRequestHandler" && ns == "global::Dualis.CQRS")
+            {
+                requestHandlers.Add(type);
+            }
+            else if (iface.Name == "INotificationHandler" && ns == "global::Dualis.Notifications")
+            {
+                notificationHandlers.Add(type);
+            }
+            else if (ns == "global::Dualis.Pipeline" && iface.TypeArguments.Length == 2 && (iface.Name == "IPipelineBehavior" || iface.Name == "IPipelineBehaviour"))
+            {
+                requestBehaviors.Add(type);
+            }
+            else if (iface.Name == "IPipelineBehavior" && ns == "global::Dualis.Pipeline" && iface.TypeArguments.Length == 1)
+            {
+                voidBehaviors.Add(type);
+            }
+            else if (iface.Name == "INotificationBehavior" && ns == "global::Dualis.Pipeline" && iface.TypeArguments.Length == 1)
+            {
+                notificationBehaviors.Add(type);
+            }
+        }
+    }
+
+    private static IEnumerable<INamedTypeSymbol> EnumerateAllTypes(IAssemblySymbol assembly)
+    {
+        Stack<INamespaceOrTypeSymbol> stack = new();
+        stack.Push(assembly.GlobalNamespace);
+
+        while (stack.Count > 0)
+        {
+            INamespaceOrTypeSymbol current = stack.Pop();
+
+            if (current is INamespaceSymbol ns)
+            {
+                foreach (ISymbol member in ns.GetMembers())
+                {
+                    if (member is INamespaceOrTypeSymbol nt)
+                    {
+                        stack.Push(nt);
+                    }
+                }
+            }
+            else if (current is INamedTypeSymbol type)
+            {
+                yield return type;
+
+                foreach (INamedTypeSymbol nested in type.GetTypeMembers())
+                {
+                    stack.Push(nested);
+                }
+            }
+        }
+    }
+
+    private static bool IsEffectivelyPublic(INamedTypeSymbol type)
+    {
+        // Public type and all containing types public.
+        if (type.DeclaredAccessibility != Accessibility.Public)
+        {
+            return false;
+        }
+
+        INamedTypeSymbol? cur = type.ContainingType;
+        while (cur is not null)
+        {
+            if (cur.DeclaredAccessibility != Accessibility.Public)
+            {
+                return false;
+            }
+
+            cur = cur.ContainingType;
+        }
+
+        return true;
     }
 }

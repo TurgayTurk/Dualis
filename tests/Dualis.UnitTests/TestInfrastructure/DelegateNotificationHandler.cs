@@ -14,6 +14,6 @@ public sealed class DelegateNotificationHandler<T>(Func<T, CancellationToken, Ta
     /// </summary>
     /// <param name="notification">The notification instance.</param>
     /// <param name="cancellationToken">A token to observe while waiting for completion.</param>
-    public Task HandleAsync(T notification, CancellationToken cancellationToken = default)
+    public Task Handle(T notification, CancellationToken cancellationToken)
         => handler(notification, cancellationToken);
 }

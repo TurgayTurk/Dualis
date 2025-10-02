@@ -21,8 +21,7 @@ public sealed class CqrsRegistry
     /// Unified registration for a handler implementation (open generic or concrete).
     /// Registers all supported CQRS handler interface mappings implemented by the type.
     /// Supported interfaces:
-    ///   ICommandHandler{TCommand, TResponse}, ICommandHandler{TCommand},
-    ///   IQueryHandler{TQuery, TResponse}, IQueryHandler{TQuery}.
+    ///   IRequestHandler{TCommand, TResponse}, IRequestHandler{TCommand}.
     /// </summary>
     /// <param name="handlerType">The handler type to register.</param>
     /// <returns>The same registry instance for chaining.</returns>
@@ -63,7 +62,7 @@ public sealed class CqrsRegistry
     private static void RegisterSupportedInterfaceMappings(IServiceCollection services, Type handlerType, bool isOpenGeneric)
     {
         Type[] interfaces = handlerType.GetInterfaces();
-        var unique = new HashSet<Type>();
+        HashSet<Type> unique = [];
 
         for (int i = 0; i < interfaces.Length; i++)
         {
@@ -75,10 +74,7 @@ public sealed class CqrsRegistry
 
             Type def = iface.GetGenericTypeDefinition();
 
-            bool isSupported = def == typeof(ICommandHandler<,>)
-                               || def == typeof(ICommandHandler<>)
-                               || def == typeof(IQueryHandler<,>)
-                               || def == typeof(IQueryHandler<>);
+            bool isSupported = def == typeof(IRequestHandler<,>) || def == typeof(IRequestHandler<>);
             if (!isSupported)
             {
                 continue;
@@ -140,7 +136,7 @@ public sealed class NotificationRegistry
 
             Type ifaceDef = typeof(Notifications.INotificationHandler<>);
             Type[] interfaces = handlerType.GetInterfaces();
-            var unique = new HashSet<Type>();
+            HashSet<Type> unique = [];
             for (int i = 0; i < interfaces.Length; i++)
             {
                 Type iface = interfaces[i];
@@ -172,7 +168,7 @@ public sealed class NotificationRegistry
 
             Type ifaceDef = typeof(Notifications.INotificationHandler<>);
             Type[] interfaces = handlerType.GetInterfaces();
-            var unique = new HashSet<Type>();
+            HashSet<Type> unique = [];
             for (int i = 0; i < interfaces.Length; i++)
             {
                 Type iface = interfaces[i];

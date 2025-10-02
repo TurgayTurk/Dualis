@@ -57,7 +57,7 @@ public sealed class ChannelNotificationPublisher : INotificationPublisher, IAsyn
     /// <param name="handlers">Resolved handlers.</param>
     /// <param name="context">Publish context.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task PublishAsync<TNotification>(
+    public async Task Publish<TNotification>(
         TNotification notification,
         IEnumerable<INotificationHandler<TNotification>> handlers,
         NotificationPublishContext context,
@@ -80,7 +80,7 @@ public sealed class ChannelNotificationPublisher : INotificationPublisher, IAsyn
             {
                 try
                 {
-                    await h.HandleAsync(notification, ct).ConfigureAwait(false);
+                    await h.Handle(notification, ct).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {

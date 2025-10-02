@@ -4,4 +4,4 @@ namespace Dualis.Notifications;
 /// Marker interface for notifications published via the mediator.
 /// Notifications represent events that can have zero or more handlers.
 /// </summary>
-public interface INotification { }
+public interface INotification;

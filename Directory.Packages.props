@@ -7,7 +7,7 @@
     <PackageVersion Include="FluentAssertions" Version="[7.2.0]" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
   </ItemGroup>
   <!-- SourceGen -->
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'SourceGen'">
@@ -22,6 +22,7 @@
   <ItemGroup>
     <!-- Core -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="9.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.9" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.9" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="9.0.9" />
     <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.15.0.120848" />
@@ -38,5 +39,9 @@
   <!-- Consumer smoke tests: pin Dualis package version -->
   <ItemGroup>
     <PackageVersion Include="Dualis" Version="0.1.4.2" />
+  </ItemGroup>
+  <!-- Samples: MediatR -->
+  <ItemGroup>
+    <PackageVersion Include="MediatR" Version="13.0.0" />
   </ItemGroup>
 </Project>

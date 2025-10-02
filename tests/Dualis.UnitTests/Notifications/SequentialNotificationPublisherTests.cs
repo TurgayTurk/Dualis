@@ -35,7 +35,7 @@ public sealed class SequentialNotificationPublisherTests
         SequentialNotificationPublisher publisher = new();
         NotificationPublishContext context = new(NotificationFailureBehavior.ContinueAndAggregate, maxDegreeOfParallelism: null);
 
-        Func<Task> act = () => publisher.PublishAsync(new TestNote(1), handlers, context, CancellationToken.None);
+        Func<Task> act = () => publisher.Publish(new TestNote(1), handlers, context, CancellationToken.None);
 
         FluentAssertions.Specialized.ExceptionAssertions<AggregateException> ex = await act.Should().ThrowAsync<AggregateException>();
         ex.Which.InnerExceptions.Should().HaveCount(2);
@@ -65,7 +65,7 @@ public sealed class SequentialNotificationPublisherTests
         SequentialNotificationPublisher publisher = new(logger);
         NotificationPublishContext context = new(NotificationFailureBehavior.ContinueAndLog, maxDegreeOfParallelism: null);
 
-        await publisher.PublishAsync(new TestNote(1), handlers, context, CancellationToken.None);
+        await publisher.Publish(new TestNote(1), handlers, context, CancellationToken.None);
 
         provider.Entries.Should().ContainSingle(e => e.Level >= LogLevel.Error && e.Exception is InvalidOperationException);
     }
@@ -92,7 +92,7 @@ public sealed class SequentialNotificationPublisherTests
         SequentialNotificationPublisher publisher = new(NullLogger<SequentialNotificationPublisher>.Instance);
         NotificationPublishContext context = new(NotificationFailureBehavior.StopOnFirstException, null);
 
-        Func<Task> act = () => publisher.PublishAsync(new TestNote(0), handlers, context, CancellationToken.None);
+        Func<Task> act = () => publisher.Publish(new TestNote(0), handlers, context, CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
         invoked.Should().Be(2);

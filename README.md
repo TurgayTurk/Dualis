@@ -2,10 +2,10 @@
 
 # Dualis
 
-Fast, lightweight mediator for .NET with CQRS, pipelines, and notifications. Dualis uses a Roslyn source generator to emit the dispatcher and DI registration code at build time, keeping runtime overhead and allocations low while offering a clean, opinionated API.
+Fast, lightweight mediator for .NET with unified requests, pipelines, and notifications. Dualis uses a Roslyn source generator to emit the dispatcher and DI registration code at build time, keeping runtime overhead and allocations low while offering a clean, opinionated API.
 
-- CQRS: `ICommand`/`ICommand<T>`, `IQuery<T>` with `ICommandHandler<>`/`IQueryHandler<>`
-- Pipelines: request/response, void, and unified pipeline behaviors
+- Requests: `IRequest`/`IRequest<T>` with `IRequestHandler<>`/`IRequestHandler<,>`
+- Pipelines: request/response and void pipeline behaviors (plus unified behaviour option)
 - Notifications: fan-out publish with failure strategies and alternative publishers
 - Source-generated `AddDualis` for DI registration and dispatcher implementation
 
@@ -19,20 +19,11 @@ dotnet add package Dualis
 
 The package includes the source generator; no extra analyzer package is required.
 
-## Enable code generation (required)
+## Enable code generation (host-only)
 
-Dualis generators are opt-in. Enable them in your host project using ONE of the following:
+Enable the generators in your host/composition root project only (API/Web/Worker) using ONE of the following:
 
-- Recommended: Assembly attribute in your project (e.g., `GlobalUsings.cs`)
-
-```csharp
-using Dualis;
-
-[assembly: EnableDualisGeneration]
-```
-
-- Or via MSBuild property (make it compiler-visible)
-  - Add to your project or `Directory.Build.props`:
+- Recommended: MSBuild property (no extra analyzer config needed when using the NuGet package, thanks to buildTransitive props)
 
 ```xml
 <PropertyGroup>
@@ -40,15 +31,18 @@ using Dualis;
 </PropertyGroup>
 ```
 
-  - And make the property visible to the compiler using either option:
-    - Add a `.globalconfig` at repo root:
+- Alternative: via `.editorconfig`/`.globalconfig` (works for both NuGet and ProjectReference)
 
 ```
 is_global = true
 build_property.DualisEnableGenerator = true
 ```
 
-    - Or add to MSBuild (project or `Directory.Build.props`):
+Notes:
+- Only enable the generator in the host. Do not enable it in Domain/Application/Infrastructure projects.
+- Add `using Dualis;` where you call `services.AddDualis()` so the generated extension is in scope.
+- When Dualis is referenced via NuGet, the package ships a buildTransitive props file that exposes the property to the compiler automatically.
+- When Dualis is referenced via ProjectReference (local dev), buildTransitive does not apply. Use the `.editorconfig` option above or make the property compiler-visible in the consuming project:
 
 ```xml
 <ItemGroup>
@@ -56,45 +50,74 @@ build_property.DualisEnableGenerator = true
 </ItemGroup>
 ```
 
-Notes:
-- Add `using Dualis;` in files where you call `services.AddDualis()` so the generated extension is in scope.
-- Source generators require SDK-style projects on supported SDKs/IDEs.
-
 ## Quick start
 
 1) Register in DI (the source generator provides `AddDualis`). It auto-registers core services, discovered handlers, pipeline behaviors, and notification handlers.
 
 ```csharp
-var services = new ServiceCollection();
+ServiceCollection services = new();
 services.AddDualis();
-var sp = services.BuildServiceProvider();
-var dualizor = sp.GetRequiredService<IDualizor>();
+IServiceProvider sp = services.BuildServiceProvider();
+IDualizor dualizor = sp.GetRequiredService<IDualizor>();
 ```
 
-2) Define a query and handler:
+2) Define a request and handler:
 
 ```csharp
-public sealed record GetUserQuery(Guid Id) : IQuery<UserDto>;
+public sealed record GetUser(Guid Id) : IRequest<UserDto>;
 
-internal sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, UserDto>
+public sealed class GetUserHandler : IRequestHandler<GetUser, UserDto>
 {
-    public Task<UserDto> HandleAsync(GetUserQuery query, CancellationToken ct = default)
-        => Task.FromResult(new UserDto(query.Id, "Alice"));
+    public Task<UserDto> Handle(GetUser request, CancellationToken ct)
+        => Task.FromResult(new UserDto(request.Id, "Alice"));
 }
 ```
 
-3) Send the query:
+3) Send the request:
 
 ```csharp
-UserDto user = await dualizor.SendAsync(new GetUserQuery(id));
+UserDto user = await dualizor.Send(new GetUser(id));
 ```
 
-Note: `IDualizor` implements both `ISender` (commands/queries) and `IPublisher` (notifications). You may inject `ISender` or `IPublisher` instead of `IDualizor` if you only need a subset.
+Note: `IDualizor` implements both `ISender` (requests) and `IPublisher` (notifications). You may inject `ISender` or `IPublisher` instead of `IDualizor` if you only need a subset.
+
+## Multi-project (DDD/CA) setup — host-only, cross-assembly auto-registration
+
+- Reference Dualis abstractions in any layer.
+- Enable generation in the host only and call `services.AddDualis()` there.
+- The generator scans the host compilation and all referenced assemblies to discover public `IRequestHandler<>`/`IRequestHandler<,>` and pipeline behaviors (no reflection).
+- Requirements:
+  - Handler and behavior types in referenced assemblies must be `public` (or exposed via `InternalsVisibleTo` to the host).
+  - Other projects should NOT enable the generator to avoid duplicate `AddDualis`/mediator.
+
+### Registering from multiple layers
+
+- Prefer a single `AddDualis` call in the host (composition root).
+- If `AddDualis` is invoked multiple times (e.g., host + library), registration is idempotent:
+  - A marker prevents re-wiring the graph more than once.
+  - Helpers (`INotificationPublisher`, `NotificationPublishContext`, `SequentialNotificationPublisher`, `ParallelWhenAllNotificationPublisher`) use TryAdd to avoid duplicate descriptors.
+  - Options Configure delegates are additive and run in order (last write wins for conflicting values).
+- If multiple assemblies generate `ServiceCollectionExtensions.AddDualis`, extension-method ambiguity can occur. Keep generation enabled only in the host.
+
+### Manual registrations in Application
+
+When registering handlers manually from Application, register the interface mapping, not the message:
+
+```csharp
+// Correct
+services.AddScoped<IRequestHandler<CreateUser>, CreateUserHandler>();
+services.AddScoped<IRequestHandler<GetUser, UserDto>, GetUserHandler>();
+
+// Incorrect (service type must be the handler interface)
+services.AddScoped<CreateUser, CreateUserHandler>();
+```
+
+Manual registrations co-exist with auto-registration. `AddDualis` uses `TryAdd`/`TryAddScoped` so your explicit registrations win when added first.
 
 ## Minimal API example
 
 ```csharp
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDualis(opts =>
 {
@@ -102,11 +125,11 @@ builder.Services.AddDualis(opts =>
     opts.MaxPublishDegreeOfParallelism = Environment.ProcessorCount;
 });
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
-app.MapPost("/create-user", async (CreateUserCommand cmd, IDualizor dualizor, CancellationToken ct) =>
+app.MapPost("/create-user", async (CreateUser cmd, IDualizor dualizor, CancellationToken ct) =>
 {
-    Guid id = await dualizor.SendAsync(cmd, ct);
+    Guid id = await dualizor.Send(cmd, ct);
     return Results.Ok(new { id });
 });
 
@@ -117,16 +140,19 @@ await app.RunAsync();
 
 Use the generated `AddDualis(IServiceCollection, Action<DualizorOptions>?)` to configure behavior.
 
-- `NotificationPublisherFactory` – swap the publisher implementation
+- `NotificationPublisherFactory` — swap the publisher implementation
   - Default: `SequentialNotificationPublisher`
   - Alternatives: `ParallelWhenAllNotificationPublisher`, `ChannelNotificationPublisher`
-- `NotificationFailureBehavior` – how to handle handler failures when publishing
+- `NotificationFailureBehavior` — how to handle handler failures when publishing
   - `ContinueAndAggregate`, `ContinueAndLog`, `StopOnFirstException`
-- `MaxPublishDegreeOfParallelism` – optional max DOP for publishers that support parallelism
+- `MaxPublishDegreeOfParallelism` — optional max DOP for publishers that support parallelism
 - Auto-registration flags
   - `RegisterDiscoveredBehaviors` (default true)
   - `RegisterDiscoveredCqrsHandlers` (default true)
   - `RegisterDiscoveredNotificationHandlers` (default true)
+- Startup validation (opt-in by options)
+  - `EnableStartupValidation` (default true)
+  - `StartupValidationMode` — `Throw` (default) | `Warn` | `Ignore` (set to `Ignore` to effectively disable)
 - Manual registries (always available, regardless of auto flags)
   - `Pipelines.Register<TBehavior>()`
   - `CQRS.Register<THandler>()`
@@ -151,13 +177,12 @@ services.AddDualis(opts =>
 
     // If registration disabled, register explicitly
     opts.Pipelines
-        .Register<LoggingBehavior<CreateUserCommand, Guid>>()
-        .Register<ValidationBehavior<CreateUserCommand, Guid>>();
+        .Register<LoggingBehavior<CreateUser, Guid>>()
+        .Register<ValidationBehavior<CreateUser, Guid>>();
 
-    // Note: Registering the handler type is sufficient; the associated
-    // request (command/query) and response types are discovered automatically.
-    opts.CQRS.Register<CreateUserCommandHandler>();
-    opts.CQRS.Register<GetUserQueryHandler>();
+    // Register handler types once; request/response types are discovered automatically
+    opts.CQRS.Register<CreateUserHandler>();
+    opts.CQRS.Register<GetUserHandler>();
     opts.Notifications.Register<UserCreatedEventHandler>();
 });
 ```
@@ -166,11 +191,12 @@ Note: For manual registration from another assembly (e.g., Program.cs in Present
 
 ## Pipelines
 
-Three forms are supported:
+Two primary forms are supported:
 
 - Request/response: `IPipelineBehavior<TRequest, TResponse>`
 - Void request: `IPipelineBehavior<TRequest>`
-- Unified: `IPipelineBehaviour<TMessage, TResponse>` (for both requests and notifications; use `Unit` for void)
+
+There is also a unified form `IPipelineBehaviour<TMessage, TResponse>` that can apply to both requests and notifications (`Unit` for void).
 
 Behaviors are executed in registration order (outer -> inner). You can also annotate behaviors with `PipelineOrderAttribute` to control ordering when auto-registered. Lower values run earlier.
 
@@ -178,39 +204,27 @@ Example request/response behavior:
 
 ```csharp
 [PipelineOrder(-10)]
-internal sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
-    {
-        // before
-        var result = await next(ct);
-        // after
-        return result;
-    }
+        => await next(ct);
 }
 
 [PipelineOrder(5)]
-internal sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
-    {
-        // validate here
-        return await next(ct);
-    }
+        => await next(ct);
 }
 ```
 
 Example void behavior:
 
 ```csharp
-internal sealed class AuditBehavior<TRequest> : IPipelineBehavior<TRequest>
+public sealed class AuditBehavior<TRequest> : IPipelineBehavior<TRequest>
 {
     public async Task Handle(TRequest request, RequestHandlerDelegate next, CancellationToken ct)
-    {
-        // before
-        await next(ct);
-        // after
-    }
+        => await next(ct);
 }
 ```
 
@@ -225,9 +239,9 @@ Define a notification and handlers:
 ```csharp
 public sealed record UserCreatedEvent(Guid Id) : INotification;
 
-internal sealed class UserCreatedEventHandler : INotificationHandler<UserCreatedEvent>
+public sealed class UserCreatedEventHandler : INotificationHandler<UserCreatedEvent>
 {
-    public Task HandleAsync(UserCreatedEvent n, CancellationToken ct = default)
+    public Task Handle(UserCreatedEvent n, CancellationToken ct)
         => Task.CompletedTask;
 }
 ```
@@ -235,35 +249,16 @@ internal sealed class UserCreatedEventHandler : INotificationHandler<UserCreated
 Publish from anywhere you have `IPublisher`/`IDualizor`:
 
 ```csharp
-await dualizor.PublishAsync(new UserCreatedEvent(id));
+await dualizor.Publish(new UserCreatedEvent(id));
 ```
 
 Choose failure behavior:
 
-- `ContinueAndAggregate` – run all handlers, throw `AggregateException` of failures
-- `ContinueAndLog` – log and swallow failures
-- `StopOnFirstException` – stop immediately on first failure (sequential)
+- `ContinueAndAggregate` — run all handlers, throw `AggregateException` of failures
+- `ContinueAndLog` — log and swallow failures
+- `StopOnFirstException` — stop immediately on first failure (sequential)
 
 Choose publisher implementation via `NotificationPublisherFactory`.
-
-## Logging
-
-Dualis uses `Microsoft.Extensions.Logging`.
-
-- When `NotificationFailureBehavior` is set to `ContinueAndLog`, publishers log handler failures via `ILogger` and continue.
-- Enable logging via your host builder; no special setup is required.
-- To use logger-enabled publishers, resolve loggers from DI in the `NotificationPublisherFactory`:
-
-```csharp
-services.AddDualis(opts =>
-{
-    opts.NotificationFailureBehavior = NotificationFailureBehavior.ContinueAndLog;
-    opts.NotificationPublisherFactory = sp =>
-        new ParallelWhenAllNotificationPublisher(
-            sp.GetRequiredService<ILogger<ParallelWhenAllNotificationPublisher>>(),
-            sp.GetRequiredService<ILoggerFactory>());
-});
-```
 
 ## Caching
 
@@ -277,15 +272,16 @@ Your code:
 - Use `IMemoryCache` or `IDistributedCache` in handlers/behaviors like any DI service.
 
 ```csharp
-internal sealed class GetUserQueryHandler(IMemoryCache cache) : IQueryHandler<GetUserQuery, UserDto>
+public sealed class GetUserHandler(IMemoryCache cache) : IRequestHandler<GetUser, UserDto>
 {
-    public Task<UserDto> HandleAsync(GetUserQuery query, CancellationToken ct = default)
+    public Task<UserDto> Handle(GetUser request, CancellationToken ct)
     {
-        if (!cache.TryGetValue(query.Id, out UserDto value))
+        if (!cache.TryGetValue(request.Id, out UserDto value))
         {
-            value = new UserDto(query.Id, "Alice");
-            cache.Set(query.Id, value, TimeSpan.FromMinutes(5));
+            value = new UserDto(request.Id, "Alice");
+            cache.Set(request.Id, value, TimeSpan.FromMinutes(5));
         }
+
         return Task.FromResult(value);
     }
 }
@@ -302,37 +298,42 @@ This keeps the runtime lean and avoids reflection-based dispatch.
 
 ### How it works
 
-- At compile time, the generator scans the compilation for implementations of `ICommandHandler<>`, `IQueryHandler<>`, `INotificationHandler<>`, and pipeline interfaces.
+- At compile time, the generator scans the host compilation and referenced assemblies for implementations of `IRequestHandler<>`, `IRequestHandler<,>`, `INotificationHandler<>`, and pipeline interfaces.
 - It generates a sealed `Dualis.Dualizor` class with direct, type-safe dispatch (no reflection) and minimal allocations, plus the `AddDualis` extension that wires everything into DI.
 - The generator includes a safety guard: if a `Dualis.Dualizor` already exists in the compilation or references (e.g., a shared kernel), generation is skipped to avoid duplicate-type conflicts.
+- The generated `AddDualis` is idempotent by design: duplicate calls won’t duplicate core registrations.
 
 ### When it runs (gating)
 
 The generator runs when either of these is true in the project where you call `services.AddDualis(...)`:
 
-- `[assembly: EnableDualisGeneration]` is present, or
 - MSBuild property `DualisEnableGenerator` is visible to the compiler and set to `true` (see “Enable code generation”).
+- Or a `.editorconfig`/`.globalconfig` sets `build_property.DualisEnableGenerator = true`.
 
 ### MSBuild property visibility
 
-- If you set `DualisEnableGenerator` in `Directory.Build.props`, ensure it’s visible to the compiler:
-  - Add `<CompilerVisibleProperty Include="DualisEnableGenerator" />` to the same `Directory.Build.props` or project file.
-  - Or, add a `.globalconfig` at the repo root with `build_property.DualisEnableGenerator = true`.
+- If you set `DualisEnableGenerator` in the project/solution, ensure it’s visible to the compiler:
+  - For NuGet consumption, this is automatic via the package’s buildTransitive props.
+  - For ProjectReference, add `<CompilerVisibleProperty Include="DualisEnableGenerator" />` to the consuming project, or use the `.editorconfig` method.
 
 ### DDD/Clean Architecture guidance
 
 - Reference Dualis abstractions in any layer. Enable generation in the composition root (API/Web/Worker) where you compose DI and call `services.AddDualis(...)`.
+- Cross-assembly auto-registration collects public handlers/behaviors from referenced projects; make types public or use `InternalsVisibleTo` to the host.
 
 ### Troubleshooting
 
 - "AddDualis not found" or "IServiceCollection does not contain a definition for AddDualis":
-  - Ensure generator is enabled (assembly attribute or compiler-visible property).
+  - Ensure generator is enabled (MSBuild property or `.editorconfig`) in the host only.
   - Ensure `using Dualis;` is in scope where you call `services.AddDualis(...)`.
   - Clean + rebuild to clear stale analyzer artifacts.
 - Duplicate type `Dualis.Dualizor`:
   - Another assembly defines the type. The generator will skip emitting it. Ensure DI registers the existing mediator to `IDualizor`/`ISender`/`IPublisher`.
+- Not all handlers are auto-registered:
+  - Ensure the handler/behavior classes are `public` (or visible via `InternalsVisibleTo`).
+  - Ensure the host project references the assemblies that contain the handlers.
 - Analyzer not loading in IDE:
-  - Check Dependencies > Analyzers in your project to see `Dualis`’s analyzer is present.
+  - Check Dependencies > Analyzers in your project to see Dualis’s analyzer is present.
 
 ## Benchmarks
 

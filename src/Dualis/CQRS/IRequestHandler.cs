@@ -1,6 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace Dualis.CQRS;
 
 /// <summary>
@@ -15,7 +12,8 @@ public interface IRequestHandler<in TRequest>
     /// </summary>
     /// <param name="request">The request instance to handle.</param>
     /// <param name="cancellationToken">A token to observe while waiting for completion.</param>
-    Task HandleAsync(TRequest request, CancellationToken cancellationToken = default);
+    /// <returns>A task representing the asynchronous operation.</returns>
+    Task Handle(TRequest request, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -32,5 +30,5 @@ public interface IRequestHandler<in TRequest, TResponse>
     /// <param name="request">The request instance to handle.</param>
     /// <param name="cancellationToken">A token to observe while waiting for completion.</param>
     /// <returns>A task that completes with the request response.</returns>
-    Task<TResponse> HandleAsync(TRequest request, CancellationToken cancellationToken = default);
+    Task<TResponse> Handle(TRequest request, CancellationToken cancellationToken);
 }

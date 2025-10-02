@@ -1,0 +1,5 @@
+# Exclude all sample projects from git
+/DDD.Domain/
+/DDD.Application/
+/DDD.Infrastructure/
+/DDD.Presentation/
