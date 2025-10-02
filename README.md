@@ -9,6 +9,15 @@ Fast, lightweight mediator for .NET with unified requests, pipelines, and notifi
 - Notifications: fan-out publish with failure strategies and alternative publishers
 - Source-generated `AddDualis` for DI registration and dispatcher implementation
 
+## What’s new (0.2.1)
+
+- BREAKING: removed `ICommand`/`IQuery` and `SendAsync`/`PublishAsync`; use `IRequest` + `ISender.Send` / `IPublisher.Publish`.
+- Nullability-safe codegen in DI/dispatcher; suppressed CS1998 in generated dispatcher where applicable.
+- NuGet buildTransitive props to expose `DualisEnableGenerator` so NuGet consumers only set the property to enable.
+- Docs/tests aligned with the new API.
+
+See full details in [CHANGELOG.md](https://github.com/TurgayTurk/Dualis/blob/main/CHANGELOG.md).
+
 ## Install
 
 NuGet:

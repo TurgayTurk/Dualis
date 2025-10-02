@@ -20,6 +20,7 @@
     <PackageProjectUrl>https://github.com/TurgayTurk/Dualis</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>logo.png</PackageIcon>
+    <PackageReleaseNotes>See CHANGELOG.md for full details: https://github.com/TurgayTurk/Dualis/blob/main/CHANGELOG.md</PackageReleaseNotes>
 
     <!-- Pack settings -->
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
@@ -47,9 +48,10 @@
     <ProjectReference Include="..\SourceGen\SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
-  <!-- Include solution README and icon in the package root -->
+  <!-- Include solution README, changelog and icon in the package root -->
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="/" />
+    <None Include="..\..\CHANGELOG.md" Pack="true" PackagePath="/" />
     <None Include="..\..\logo.png" Pack="true" PackagePath="/" Visible="false" />
 
     <!-- Make MSBuild property DualisEnableGenerator visible to analyzers for consumers via buildTransitive -->
