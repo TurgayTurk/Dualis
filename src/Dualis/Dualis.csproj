@@ -53,6 +53,6 @@
     <None Include="..\..\logo.png" Pack="true" PackagePath="/" Visible="false" />
 
     <!-- Make MSBuild property DualisEnableGenerator visible to analyzers for consumers via buildTransitive -->
-    <None Include="buildTransitive\Dualis.SourceGen.props" Pack="true" PackagePath="buildTransitive\Dualis.SourceGen.props" />
+    <None Include="buildTransitive\Dualis.props" Pack="true" PackagePath="buildTransitive\Dualis.props" />
   </ItemGroup>
 </Project>
