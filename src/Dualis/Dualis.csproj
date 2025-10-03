@@ -9,7 +9,7 @@
 
     <!-- NuGet package metadata -->
     <PackageId>Dualis</PackageId>
-    <Version>0.2.1</Version>
+    <Version>0.2.3</Version>
     <Authors>Turgay Turk</Authors>
     <Company></Company>
     <Description>Mediator-like CQRS + pipeline behaviors + notifications with source generator for minimal overhead.</Description>
@@ -35,7 +35,6 @@
     <!-- Ensure XML docs are included in the NuGet package -->
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.xml</AllowedOutputExtensionsInPackageBuildOutputFolder>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
@@ -43,10 +42,22 @@
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
   </ItemGroup>
 
-  <!-- Ship the source generator as an analyzer; NuGet will place it under analyzers/dotnet/cs -->
+  <!-- IDE-only analyzer reference for rich experience while editing in VS.
+       Disabled during Pack (IsPack=true) to avoid TFM mismatch and rely on explicit analyzer assets below. -->
   <ItemGroup>
-    <ProjectReference Include="..\SourceGen\SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\SourceGen\SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(IsPack)' != 'true'" />
   </ItemGroup>
+
+  <!-- Explicit analyzer assets to guarantee packaging layout under analyzers/dotnet/cs -->
+  <ItemGroup>
+    <None Include="..\SourceGen\bin\$(Configuration)\netstandard2.0\Dualis.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Condition="Exists('..\\SourceGen\\bin\\$(Configuration)\\netstandard2.0\\Dualis.SourceGen.dll')" Visible="false" />
+    <None Include="..\SourceGen\bin\$(Configuration)\netstandard2.0\Dualis.SourceGen.xml" Pack="true" PackagePath="analyzers/dotnet/cs" Condition="Exists('..\\SourceGen\\bin\\$(Configuration)\\netstandard2.0\\Dualis.SourceGen.xml')" Visible="false" />
+  </ItemGroup>
+
+  <!-- Build the generator before packing this package so the DLL exists -->
+  <Target Name="BuildSourceGenBeforePack" BeforeTargets="Pack">
+    <MSBuild Projects="..\SourceGen\SourceGen.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
+  </Target>
 
   <!-- Include solution README, changelog and icon in the package root -->
   <ItemGroup>
@@ -55,6 +66,6 @@
     <None Include="..\..\logo.png" Pack="true" PackagePath="/" Visible="false" />
 
     <!-- Make MSBuild property DualisEnableGenerator visible to analyzers for consumers via buildTransitive -->
-    <None Include="buildTransitive\Dualis.props" Pack="true" PackagePath="buildTransitive\Dualis.props" />
+    <!-- Removed buildTransitive Dualis.globalconfig to avoid enabling generator in all referencing projects by default -->
   </ItemGroup>
 </Project>

@@ -1,4 +1,5 @@
 using Dualis.CQRS;
+using Dualis.SourceGen;
 using FluentAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;

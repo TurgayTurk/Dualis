@@ -2,7 +2,7 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
 
-namespace SourceGen;
+namespace Dualis.SourceGen;
 
 /// <summary>
 /// Roslyn incremental generator that emits the default Dualizor mediator implementation for IRequest/IRequestHandler and notifications.
@@ -30,27 +30,27 @@ public sealed class DualisGenerator : IIncrementalGenerator
             {
                 if (opts.GlobalOptions.TryGetValue("build_property.DualisEnableGenerator", out string? v))
                 {
-                    return (true, string.Equals(v, "true", System.StringComparison.OrdinalIgnoreCase));
+                    return (true, string.Equals(v, "true", StringComparison.OrdinalIgnoreCase));
                 }
 
                 return (false, false);
             });
 
         IncrementalValueProvider<(bool exists, bool isTrue)> propFromTexts = context.AdditionalTextsProvider
-            .Where(static t => t.Path.EndsWith(".globalconfig", System.StringComparison.OrdinalIgnoreCase) || t.Path.EndsWith(".editorconfig", System.StringComparison.OrdinalIgnoreCase))
+            .Where(static t => t.Path.EndsWith(".globalconfig", StringComparison.OrdinalIgnoreCase) || t.Path.EndsWith(".editorconfig", StringComparison.OrdinalIgnoreCase))
             .Select(static (t, ct) => t.GetText(ct)?.ToString() ?? string.Empty)
             .Collect()
             .Select(static (texts, _) =>
             {
                 const string key = "build_property.DualisEnableGenerator";
-                string? content = texts.FirstOrDefault(c => c.IndexOf(key, System.StringComparison.OrdinalIgnoreCase) >= 0);
+                string? content = texts.FirstOrDefault(c => c.IndexOf(key, StringComparison.OrdinalIgnoreCase) >= 0);
                 if (content is null)
                 {
                     return (false, false);
                 }
 
-                string? line = content.Split(NewlineSeparators, System.StringSplitOptions.None)
-                    .FirstOrDefault(l => l.IndexOf(key, System.StringComparison.OrdinalIgnoreCase) >= 0);
+                string? line = content.Split(NewlineSeparators, StringSplitOptions.None)
+                    .FirstOrDefault(l => l.IndexOf(key, StringComparison.OrdinalIgnoreCase) >= 0);
                 if (line is null)
                 {
                     return (false, false);
@@ -63,7 +63,7 @@ public sealed class DualisGenerator : IIncrementalGenerator
                 }
 
                 string rhs = line.Substring(eq + 1).Trim();
-                bool val = string.Equals(rhs, "true", System.StringComparison.OrdinalIgnoreCase);
+                bool val = string.Equals(rhs, "true", StringComparison.OrdinalIgnoreCase);
                 return (true, val);
             });
 
@@ -234,6 +234,9 @@ public sealed class DualisGenerator : IIncrementalGenerator
             {
                 sb.AppendLine("        switch (notification)");
                 sb.AppendLine("        {");
+
+                // Emit a single case per unique notification type to avoid duplicate/unreachable cases
+                HashSet<string> emittedNotes = [];
                 foreach (INamedTypeSymbol handler in source.NotificationHandlers.OfType<INamedTypeSymbol>())
                 {
                     foreach (INamedTypeSymbol iface in handler.AllInterfaces)
@@ -247,6 +250,10 @@ public sealed class DualisGenerator : IIncrementalGenerator
                                 continue;
                             }
                             string note = iface.TypeArguments[0].ToDisplayString(FullyQualifiedWithNullability);
+                            if (!emittedNotes.Add(note))
+                            {
+                                continue; // already generated a case for this notification type
+                            }
                             sb.AppendLine($"            case {note} n:");
                             sb.AppendLine("            {");
                             sb.AppendLine($"                IEnumerable<INotificationHandler<{note}>> handlers = serviceProvider.GetServices<INotificationHandler<{note}>>();");

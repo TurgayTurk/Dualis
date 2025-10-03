@@ -1,11 +1,11 @@
-﻿using Microsoft.CodeAnalysis;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text;
+using Microsoft.CodeAnalysis;
 
-namespace SourceGen;
+namespace Dualis.SourceGen;
 
 /// <summary>
-/// Roslyn incremental generator that emits the <c>AddDualis</c> extension method, which registers handlers,
+/// Roslyn incremental generator that emits the <c>AddDualis</c> registration method, which registers handlers,
 /// pipeline behaviors, and infrastructure into IServiceCollection.
 /// </summary>
 [Generator]
@@ -31,28 +31,28 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
             {
                 if (opts.GlobalOptions.TryGetValue("build_property.DualisEnableGenerator", out string? v))
                 {
-                    return (true, string.Equals(v, "true", System.StringComparison.OrdinalIgnoreCase));
+                    return (true, string.Equals(v, "true", StringComparison.OrdinalIgnoreCase));
                 }
 
                 return (false, false);
             });
 
         IncrementalValueProvider<(bool exists, bool isTrue)> propFromTexts = context.AdditionalTextsProvider
-            .Where(static t => t.Path.EndsWith(".globalconfig", System.StringComparison.OrdinalIgnoreCase) || t.Path.EndsWith(".editorconfig", System.StringComparison.OrdinalIgnoreCase))
+            .Where(static t => t.Path.EndsWith(".globalconfig", StringComparison.OrdinalIgnoreCase) || t.Path.EndsWith(".editorconfig", StringComparison.OrdinalIgnoreCase))
             .Select(static (t, ct) => t.GetText(ct)?.ToString() ?? string.Empty)
             .Collect()
             .Select(static (texts, _) =>
             {
                 const string key = "build_property.DualisEnableGenerator";
-                string? content = texts.FirstOrDefault(c => c.IndexOf(key, System.StringComparison.OrdinalIgnoreCase) >= 0);
+                string? content = texts.FirstOrDefault(c => c.IndexOf(key, StringComparison.OrdinalIgnoreCase) >= 0);
                 if (content is null)
                 {
                     return (false, false);
                 }
 
                 string? line = content
-                    .Split(NewlineSeparators, System.StringSplitOptions.None)
-                    .FirstOrDefault(l => l.IndexOf(key, System.StringComparison.OrdinalIgnoreCase) >= 0);
+                    .Split(NewlineSeparators, StringSplitOptions.None)
+                    .FirstOrDefault(l => l.IndexOf(key, StringComparison.OrdinalIgnoreCase) >= 0);
                 if (line is null)
                 {
                     return (false, false);
@@ -65,7 +65,7 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
                 }
 
                 string rhs = line.Substring(eq + 1).Trim();
-                bool val = string.Equals(rhs, "true", System.StringComparison.OrdinalIgnoreCase);
+                bool val = string.Equals(rhs, "true", StringComparison.OrdinalIgnoreCase);
                 return (true, val);
             });
 
@@ -115,9 +115,11 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
             sb.AppendLine("using Dualis.Pipeline;");
             sb.AppendLine("using Dualis.Notifications;");
             sb.AppendLine();
-            sb.AppendLine("namespace Dualis;");
+            // Place generated method under a non-imported namespace to avoid extension method ambiguity with the public entry point.
+            sb.AppendLine("namespace Dualis.Generated;");
             sb.AppendLine();
-            sb.AppendLine("public static class ServiceCollectionExtensions");
+            // Internal so it is not exported across assemblies; different namespace to avoid being in scope by default.
+            sb.AppendLine("internal static class ServiceCollectionExtensions");
             sb.AppendLine("{");
             sb.AppendLine("    /// <summary>");
             sb.AppendLine("    /// Registers Dualis core services, discovered handlers and pipeline behaviors.");
@@ -126,7 +128,8 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
             sb.AppendLine("    /// <param name=\"services\">The DI container.</param>");
             sb.AppendLine("    /// <param name=\"configure\">Optional configuration callback for <c>DualizorOptions</c>.</param>");
             sb.AppendLine("    /// <returns>The same <see cref=\"IServiceCollection\"/> for chaining.</returns>");
-            sb.AppendLine("    public static IServiceCollection AddDualis(this IServiceCollection services, System.Action<DualizorOptions>? configure = null)");
+            // IMPORTANT: non-extension (no 'this') and internal
+            sb.AppendLine("    internal static IServiceCollection AddDualis(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<DualizorOptions>? configure = null)");
             sb.AppendLine("    {");
             sb.AppendLine("        // Options");
             sb.AppendLine("        services.AddOptions<DualizorOptions>();");
@@ -156,8 +159,10 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
             sb.AppendLine("        // Auto-register discovered pipeline behaviors if enabled");
             sb.AppendLine("        if (autoRegisterBehaviors)");
             sb.AppendLine("        {");
+            // Request/Response
             sb.AppendLine("            // Request/Response behaviors");
             AppendRequestBehaviorRegistrations(sb, requestBehaviors);
+            // Void
             sb.AppendLine("            // Void request behaviors");
             AppendVoidBehaviorRegistrations(sb, voidBehaviors);
             sb.AppendLine("        }");

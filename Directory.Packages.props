@@ -38,7 +38,7 @@
   </ItemGroup>
   <!-- Consumer smoke tests: pin Dualis package version -->
   <ItemGroup>
-    <PackageVersion Include="Dualis" Version="0.1.4.2" />
+    <PackageVersion Include="Dualis" Version="0.2.3" />
   </ItemGroup>
   <!-- Samples: MediatR -->
   <ItemGroup>

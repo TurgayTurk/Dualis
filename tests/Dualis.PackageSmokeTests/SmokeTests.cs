@@ -1,6 +1,6 @@
 using Dualis.CQRS;
-using Microsoft.Extensions.DependencyInjection;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Dualis.PackageSmokeTests;

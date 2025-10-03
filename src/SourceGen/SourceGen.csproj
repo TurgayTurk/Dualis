@@ -10,6 +10,10 @@
 		<!-- Ensure XML docs are included in the NuGet package -->
 		<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.xml</AllowedOutputExtensionsInPackageBuildOutputFolder>
 
+		<!-- Give the generator a unique assembly name -->
+		<AssemblyName>Dualis.SourceGen</AssemblyName>
+		<RootNamespace>Dualis.SourceGen</RootNamespace>
+
 		<!-- NuGet metadata for generator-only package option -->
 		<PackageId>Dualis.SourceGen</PackageId>
 		<Version>0.1.0</Version>
@@ -37,7 +41,7 @@
 
 	<!-- Pack as Analyzer asset -->
 	<ItemGroup>
-		<None Include="bin\$(Configuration)\$(TargetFramework)\SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-		<None Include="bin\$(Configuration)\$(TargetFramework)\SourceGen.xml" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('bin\$(Configuration)\$(TargetFramework)\SourceGen.xml')" />
+		<None Include="bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml')" />
 	</ItemGroup>
 </Project>

@@ -10,6 +10,14 @@
 		<CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
 		<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
 		<LangVersion>latest</LangVersion>
+		<!-- NuGet restore/audit settings -->
+		<NoWarn>$(NoWarn);NU1900</NoWarn>
+		<RestoreNoWarn>$(RestoreNoWarn);NU1900</RestoreNoWarn>
+		<NuGetAuditMode>direct</NuGetAuditMode>
+		<!-- Ensure NuGet does NOT treat warnings as errors during restore -->
+		<RestoreTreatWarningsAsErrors>false</RestoreTreatWarningsAsErrors>
+		<RestoreWarningsAsErrors />
+		<RestoreWarnAsError />
 	</PropertyGroup>
 	
 	<ItemGroup Condition="'$(MSBuildProjectExtensions)' != '.dcproj'">

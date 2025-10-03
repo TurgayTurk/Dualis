@@ -1,0 +1,140 @@
+[1mdiff --git a/Directory.Packages.props b/Directory.Packages.props[m
+[1mindex 9d22784..56fcd04 100644[m
+[1m--- a/Directory.Packages.props[m
+[1m+++ b/Directory.Packages.props[m
+[36m@@ -38,7 +38,7 @@[m
+   </ItemGroup>[m
+   <!-- Consumer smoke tests: pin Dualis package version -->[m
+   <ItemGroup>[m
+[31m-    <PackageVersion Include="Dualis" Version="0.1.4.2" />[m
+[32m+[m[32m    <PackageVersion Include="Dualis" Version="0.2.1" />[m
+   </ItemGroup>[m
+   <!-- Samples: MediatR -->[m
+   <ItemGroup>[m
+[1mdiff --git a/src/Dualis/DependencyInjection/ServiceCollectionExtensions.cs b/src/Dualis/DependencyInjection/ServiceCollectionExtensions.cs[m
+[1mindex db55fe2..185b469 100644[m
+[1m--- a/src/Dualis/DependencyInjection/ServiceCollectionExtensions.cs[m
+[1m+++ b/src/Dualis/DependencyInjection/ServiceCollectionExtensions.cs[m
+[36m@@ -12,6 +12,7 @@[m [mpublic static class ServiceCollectionExtensions[m
+     /// <summary>[m
+     /// Registers Dualizor infrastructure and allows configuration via <see cref="DualizorOptions"/>.[m
+     /// Internal on purpose; the generated AddDualis method should be used by consumers.[m
+[32m+[m[32m    /// When source-generated Dualizor is unavailable, falls back to a reflection-based dispatcher.[m
+     /// </summary>[m
+     /// <param name="services">The service collection to modify.</param>[m
+     /// <param name="configure">Optional callback to configure <see cref="DualizorOptions"/>.</param>[m
+[36m@@ -40,6 +41,24 @@[m [mpublic static class ServiceCollectionExtensions[m
+         services.AddScoped<SequentialNotificationPublisher>();[m
+         services.AddScoped<ParallelWhenAllNotificationPublisher>();[m
+ [m
+[32m+[m[32m        // Fallback: if generated Dualizor type is not present, register reflection-based one[m
+[32m+[m[32m        Type? dualizorType = Type.GetType("Dualis.Dualizor") ?? AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("Dualis.Dualizor", throwOnError: false)).FirstOrDefault(t => t is not null);[m
+[32m+[m[32m        if (dualizorType is null)[m
+[32m+[m[32m        {[m
+[32m+[m[32m            services.AddScoped<IDualizor, FallbackDualizor>();[m
+[32m+[m[32m            services.AddScoped<ISender, FallbackDualizor>();[m
+[32m+[m[32m            services.AddScoped<IPublisher, FallbackDualizor>();[m
+[32m+[m[32m        }[m
+[32m+[m[32m        else[m
+[32m+[m[32m        {[m
+[32m+[m[32m            // If the generated type is present but the public AddDualis was not invoked,[m
+[32m+[m[32m            // still map the interfaces so runtime path works.[m
+[32m+[m[32m            services.AddScoped(dualizorType, dualizorType);[m
+[32m+[m[32m            services.AddScoped<IDualizor>(sp => (IDualizor)sp.GetRequiredService(dualizorType));[m
+[32m+[m[32m            services.AddScoped<ISender>(sp => (ISender)sp.GetRequiredService(dualizorType));[m
+[32m+[m[32m            services.AddScoped<IPublisher>(sp => (IPublisher)sp.GetRequiredService(dualizorType));[m
+[32m+[m[32m        }[m
+[32m+[m
+         return services;[m
+     }[m
+ }[m
+[1mdiff --git a/src/Dualis/Dualis.csproj b/src/Dualis/Dualis.csproj[m
+[1mindex 4e24aba..4630cd0 100644[m
+[1m--- a/src/Dualis/Dualis.csproj[m
+[1m+++ b/src/Dualis/Dualis.csproj[m
+[36m@@ -45,7 +45,9 @@[m
+ [m
+   <!-- Ship the source generator as an analyzer; NuGet will place it under analyzers/dotnet/cs -->[m
+   <ItemGroup>[m
+[31m-    <ProjectReference Include="..\SourceGen\SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />[m
+[32m+[m[32m    <ProjectReference Include="..\SourceGen\SourceGen.csproj"[m[41m [m
+[32m+[m					[32m  OutputItemType="Analyzer"[m[41m [m
+[32m+[m					[32m  ReferenceOutputAssembly="false" />[m
+   </ItemGroup>[m
+ [m
+   <!-- Include solution README, changelog and icon in the package root -->[m
+[36m@@ -56,5 +58,6 @@[m
+ [m
+     <!-- Make MSBuild property DualisEnableGenerator visible to analyzers for consumers via buildTransitive -->[m
+     <None Include="buildTransitive\Dualis.props" Pack="true" PackagePath="buildTransitive\Dualis.props" />[m
+[32m+[m[32m    <None Include="buildTransitive\Dualis.globalconfig" Pack="true" PackagePath="buildTransitive\Dualis.globalconfig" />[m
+   </ItemGroup>[m
+ </Project>[m
+[1mdiff --git a/src/Dualis/buildTransitive/Dualis.props b/src/Dualis/buildTransitive/Dualis.props[m
+[1mindex 54596af..d17f098 100644[m
+[1m--- a/src/Dualis/buildTransitive/Dualis.props[m
+[1m+++ b/src/Dualis/buildTransitive/Dualis.props[m
+[36m@@ -1,6 +1,12 @@[m
+ <Project>[m
+[32m+[m[32m  <PropertyGroup>[m
+[32m+[m[32m    <!-- Enable Dualis generators by default for consumers; can be overridden by setting to false -->[m
+[32m+[m[32m    <DualisEnableGenerator Condition="'$(DualisEnableGenerator)' == ''">true</DualisEnableGenerator>[m
+[32m+[m[32m  </PropertyGroup>[m
+   <ItemGroup>[m
+     <CompilerVisibleProperty Include='DualisEnableGenerator' />[m
+[32m+[m[32m    <!-- Fallback for analyzers reading AdditionalTexts: feed a globalconfig that sets the build_property -->[m
+[32m+[m[32m    <AdditionalFiles Include="$(MSBuildThisFileDirectory)Dualis.globalconfig" />[m
+   </ItemGroup>[m
+ </Project>[m
+ [m
+[1mdiff --git a/src/SourceGen/DualisGenerator.cs b/src/SourceGen/DualisGenerator.cs[m
+[1mindex 5c08f61..1118463 100644[m
+[1m--- a/src/SourceGen/DualisGenerator.cs[m
+[1m+++ b/src/SourceGen/DualisGenerator.cs[m
+[36m@@ -234,6 +234,9 @@[m [mpublic sealed class DualisGenerator : IIncrementalGenerator[m
+             {[m
+                 sb.AppendLine("        switch (notification)");[m
+                 sb.AppendLine("        {");[m
+[32m+[m
+[32m+[m[32m                // Emit a single case per unique notification type to avoid duplicate/unreachable cases[m
+[32m+[m[32m                HashSet<string> emittedNotes = [];[m
+                 foreach (INamedTypeSymbol handler in source.NotificationHandlers.OfType<INamedTypeSymbol>())[m
+                 {[m
+                     foreach (INamedTypeSymbol iface in handler.AllInterfaces)[m
+[36m@@ -247,6 +250,10 @@[m [mpublic sealed class DualisGenerator : IIncrementalGenerator[m
+                                 continue;[m
+                             }[m
+                             string note = iface.TypeArguments[0].ToDisplayString(FullyQualifiedWithNullability);[m
+[32m+[m[32m                            if (!emittedNotes.Add(note))[m
+[32m+[m[32m                            {[m
+[32m+[m[32m                                continue; // already generated a case for this notification type[m
+[32m+[m[32m                            }[m
+                             sb.AppendLine($"            case {note} n:");[m
+                             sb.AppendLine("            {");[m
+                             sb.AppendLine($"                IEnumerable<INotificationHandler<{note}>> handlers = serviceProvider.GetServices<INotificationHandler<{note}>>();");[m
+[1mdiff --git a/src/SourceGen/SourceGen.csproj b/src/SourceGen/SourceGen.csproj[m
+[1mindex d97623c..8f6b8cb 100644[m
+[1m--- a/src/SourceGen/SourceGen.csproj[m
+[1m+++ b/src/SourceGen/SourceGen.csproj[m
+[36m@@ -10,6 +10,10 @@[m
+ 		<!-- Ensure XML docs are included in the NuGet package -->[m
+ 		<AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.xml</AllowedOutputExtensionsInPackageBuildOutputFolder>[m
+ [m
+[32m+[m		[32m<!-- Give the generator a unique assembly name -->[m
+[32m+[m		[32m<AssemblyName>Dualis.SourceGen</AssemblyName>[m
+[32m+[m		[32m<RootNamespace>Dualis.SourceGen</RootNamespace>[m
+[32m+[m
+ 		<!-- NuGet metadata for generator-only package option -->[m
+ 		<PackageId>Dualis.SourceGen</PackageId>[m
+ 		<Version>0.1.0</Version>[m
+[36m@@ -37,7 +41,7 @@[m
+ [m
+ 	<!-- Pack as Analyzer asset -->[m
+ 	<ItemGroup>[m
+[31m-		<None Include="bin\$(Configuration)\$(TargetFramework)\SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />[m
+[31m-		<None Include="bin\$(Configuration)\$(TargetFramework)\SourceGen.xml" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('bin\$(Configuration)\$(TargetFramework)\SourceGen.xml')" />[m
+[32m+[m		[32m<None Include="bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />[m
+[32m+[m		[32m<None Include="bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml')" />[m
+ 	</ItemGroup>[m
+ </Project>[m
+\ No newline at end of file[m

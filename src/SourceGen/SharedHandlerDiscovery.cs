@@ -1,9 +1,9 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using System.Collections.Immutable;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Collections.Immutable;
 
-namespace SourceGen;
+namespace Dualis.SourceGen;
 
 /// <summary>
 /// Shared discovery utilities for Roslyn incremental generators in this project.
