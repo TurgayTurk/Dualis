@@ -75,6 +75,8 @@ Notes:
 ```
 var builder = WebApplication.CreateBuilder(args);
 
+// Dualis auto-discovers and registers handlers, pipeline behaviors, and notifications
+// from the host compilation and referenced assemblies. No manual DI registration required.
 builder.Services.AddDualis();
 
 var app = builder.Build();
@@ -105,6 +107,47 @@ await app.RunAsync();
 ```
 
 Note: `IDualizor` implements both `ISender` and `IPublisher`. Inject either if you only need a subset.
+
+### Auto-registration, manual registration, and options
+
+By default, `AddDualis` will automatically register all discovered request handlers, pipeline behaviors, and notification handlers. You can disable any auto-registration and manually register specific pieces using `DualizorOptions`.
+
+Disable auto-registration and register manually:
+
+```
+builder.Services.AddDualis(opts =>
+{
+    // Disable auto-registration for any component type as needed
+    opts.RegisterDiscoveredBehaviors = false;
+    opts.RegisterDiscoveredCqrsHandlers = false;
+    opts.RegisterDiscoveredNotificationHandlers = false;
+
+    // Manually register pipeline behaviors (request/response or void)
+    opts.Pipelines.Register<LoggingBehavior<GetUserByNameQuery, UserDto?>>();
+    opts.Pipelines.Register<VoidBehavior<SomeCommand>>();
+
+    // Manually register notification handlers
+    opts.Notifications.Register<UserCreatedEventHandler>();
+
+    // You can also register handlers via DI if preferred
+    // services.AddScoped<IRequestHandler<GetUserByNameQuery, UserDto?>, GetUserByNameQueryHandler>();
+
+    // Notifications: choose publisher and failure policy
+    opts.NotificationPublisherFactory = sp => sp.GetRequiredService<ParallelWhenAllNotificationPublisher>();
+    opts.NotificationFailureBehavior = NotificationFailureBehavior.ContinueAndAggregate;
+    opts.MaxPublishDegreeOfParallelism = Environment.ProcessorCount;
+});
+```
+
+Options overview (non-exhaustive):
+- `RegisterDiscoveredBehaviors`/`RegisterDiscoveredCqrsHandlers`/`RegisterDiscoveredNotificationHandlers`: toggles for auto-registration.
+- `Pipelines`: registry for manual behavior registration and pipeline settings (also controls behavior auto-registration enablement).
+- `Notifications`: registry for manual notification handler registration.
+- `NotificationPublisherFactory`: selects the publisher implementation (sequential is default; alternatives include `ParallelWhenAllNotificationPublisher`).
+- `NotificationFailureBehavior`: `ContinueAndAggregate`, `ContinueAndLog`, `StopOnFirstException`.
+- `MaxPublishDegreeOfParallelism`: degree of parallelism when using parallel publisher.
+
+Behavior ordering: behaviors run outer ? inner in registration order; annotate with `PipelineOrderAttribute` to control execution order when using auto-registration (lower runs earlier).
 
 ## Using Dualis without the generator (runtime path)
 

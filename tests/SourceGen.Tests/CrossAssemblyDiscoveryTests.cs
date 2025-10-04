@@ -74,7 +74,7 @@ public sealed class CrossAssemblyDiscoveryTests
 
         string addDualis = run.Results
             .SelectMany(r => r.GeneratedSources)
-            .Where(gs => gs.HintName.EndsWith("ServiceCollectionExtensions.g.cs", System.StringComparison.OrdinalIgnoreCase))
+            .Where(gs => gs.HintName.EndsWith("ServiceCollectionExtensions.g.cs", StringComparison.OrdinalIgnoreCase))
             .Select(gs => gs.SourceText.ToString())
             .FirstOrDefault() ?? string.Empty;
 
@@ -180,7 +180,7 @@ public sealed class CrossAssemblyDiscoveryTests
             references: frameworkRefs.Add(dualisAbstractions),
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        using System.IO.MemoryStream pe = new();
+        using MemoryStream pe = new();
         Microsoft.CodeAnalysis.Emit.EmitResult emit = lib.Emit(pe);
         emit.Success.Should().BeTrue("Library compile failed. Diagnostics:\n" + string.Join("\n", lib.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error)));
         pe.Position = 0;
@@ -190,13 +190,13 @@ public sealed class CrossAssemblyDiscoveryTests
     private sealed class InMemoryAdditionalText(string path, string content) : AdditionalText
     {
         public override string Path { get; } = path;
-        public override SourceText GetText(System.Threading.CancellationToken cancellationToken = default)
+        public override SourceText GetText(CancellationToken cancellationToken = default)
             => SourceText.From(content, Encoding.UTF8);
     }
 
     private static InMemoryAdditionalText CreateEditorConfig(bool enable)
     {
-        string content = string.Join(System.Environment.NewLine,
+        string content = string.Join(Environment.NewLine,
             "is_global = true",
             $"build_property.DualisEnableGenerator = {(enable ? "true" : "false")}"
         );
