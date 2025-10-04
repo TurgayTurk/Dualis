@@ -36,19 +36,11 @@ public static class ServiceCollectionExtensions
             return result;
         }
 
-        IServiceCollection? fromScan = AppDomain.CurrentDomain
-            .GetAssemblies()
-            .Select(asm => TryInvokeGenerated(asm, services, configure))
-            .FirstOrDefault(sc => sc is not null);
-        if (fromScan is not null)
-        {
-            return fromScan;
-        }
-
+        // No generated registration found in host assemblies; use runtime registration.
         return DependencyInjection.ServiceCollectionExtensions.AddDualizor(services, configure);
     }
 
-    [SuppressMessage("Security", "S3011", Justification = "Intentional access to internal generated AddDualis method in the app assembly.")]
+    [SuppressMessage("Security", "S3011", Justification = "Intentional access to internal generated AddDualis method in the host assembly.")]
     private static IServiceCollection? TryInvokeGenerated(Assembly? asm, IServiceCollection services, Action<DualizorOptions>? configure)
     {
         if (asm is null)
@@ -56,37 +48,27 @@ public static class ServiceCollectionExtensions
             return null;
         }
 
-        // Try new namespace first, then fallback to old for backward compatibility
-        Type? type = asm.GetType("Dualis.Generated.ServiceCollectionExtensions", throwOnError: false, ignoreCase: false)
-                   ?? asm.GetType("Dualis.ServiceCollectionExtensions", throwOnError: false, ignoreCase: false);
+#pragma warning disable S3011
+        // Only look for the new non-extension internal method generated under Dualis.Generated
+        Type? type = asm.GetType("Dualis.Generated.ServiceCollectionExtensions", throwOnError: false, ignoreCase: false);
         if (type is null)
         {
             return null;
         }
 
-#pragma warning disable S3011
-        // The generated method is 'internal static IServiceCollection AddDualis(this IServiceCollection, Action<DualizorOptions>?)'
         MethodInfo? mi = type.GetMethod(
             name: "AddDualis",
             bindingAttr: BindingFlags.Static | BindingFlags.NonPublic,
             binder: null,
             types: [typeof(IServiceCollection), typeof(Action<DualizorOptions>)],
             modifiers: null);
+        // Fallback: find by name and first parameter type IServiceCollection
+        mi ??= type.GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
+                 .FirstOrDefault(m => string.Equals(m.Name, "AddDualis", StringComparison.Ordinal) &&
+                                      m.GetParameters() is { Length: 2 } p &&
+                                      typeof(IServiceCollection).IsAssignableFrom(p[0].ParameterType));
 #pragma warning restore S3011
 
-        if (mi is null)
-        {
-#pragma warning disable S3011
-            MethodInfo? candidate = type.GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
-                .FirstOrDefault(m => string.Equals(m.Name, "AddDualis", StringComparison.Ordinal) &&
-                                     m.GetParameters() is { Length: 2 } p &&
-                                     typeof(IServiceCollection).IsAssignableFrom(p[0].ParameterType));
-#pragma warning restore S3011
-            return candidate is null
-                ? null
-                : (IServiceCollection?)candidate.Invoke(null, [services, configure]);
-        }
-
-        return (IServiceCollection?)mi.Invoke(null, [services, configure]);
+        return mi is null ? null : (IServiceCollection?)mi.Invoke(null, [services, configure]);
     }
 }

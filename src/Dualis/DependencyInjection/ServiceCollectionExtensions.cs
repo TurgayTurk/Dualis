@@ -1,5 +1,6 @@
 using Dualis.Notifications;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace Dualis.DependencyInjection;
@@ -25,38 +26,36 @@ public static class ServiceCollectionExtensions
             services.Configure(configure);
         }
 
-        services.AddScoped(sp =>
+        services.TryAddScoped(sp =>
         {
             DualizorOptions options = sp.GetRequiredService<IOptions<DualizorOptions>>().Value;
             return options.NotificationPublisherFactory(sp);
         });
 
-        services.AddScoped(sp =>
+        services.TryAddScoped(sp =>
         {
             DualizorOptions options = sp.GetRequiredService<IOptions<DualizorOptions>>().Value;
             return new NotificationPublishContext(options.NotificationFailureBehavior, options.MaxPublishDegreeOfParallelism);
         });
 
         // Default publishers available for factory selection
-        services.AddScoped<SequentialNotificationPublisher>();
-        services.AddScoped<ParallelWhenAllNotificationPublisher>();
+        services.TryAddScoped<SequentialNotificationPublisher>();
+        services.TryAddScoped<ParallelWhenAllNotificationPublisher>();
 
         // Fallback: if generated Dualizor type is not present, register reflection-based one
         Type? dualizorType = Type.GetType("Dualis.Dualizor") ?? AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("Dualis.Dualizor", throwOnError: false)).FirstOrDefault(t => t is not null);
         if (dualizorType is null)
         {
-            services.AddScoped<IDualizor, FallbackDualizor>();
-            services.AddScoped<ISender, FallbackDualizor>();
-            services.AddScoped<IPublisher, FallbackDualizor>();
+            services.TryAddScoped<IDualizor, FallbackDualizor>();
+            services.TryAddScoped<ISender, FallbackDualizor>();
+            services.TryAddScoped<IPublisher, FallbackDualizor>();
         }
         else
         {
-            // If the generated type is present but the public AddDualis was not invoked,
-            // still map the interfaces so runtime path works.
-            services.AddScoped(dualizorType, dualizorType);
-            services.AddScoped(sp => (IDualizor)sp.GetRequiredService(dualizorType));
-            services.AddScoped(sp => (ISender)sp.GetRequiredService(dualizorType));
-            services.AddScoped(sp => (IPublisher)sp.GetRequiredService(dualizorType));
+            services.TryAdd(new ServiceDescriptor(dualizorType, dualizorType, ServiceLifetime.Scoped));
+            services.TryAdd(ServiceDescriptor.Scoped(typeof(IDualizor), sp => (IDualizor)sp.GetRequiredService(dualizorType)));
+            services.TryAdd(ServiceDescriptor.Scoped(typeof(ISender), sp => (ISender)sp.GetRequiredService(dualizorType)));
+            services.TryAdd(ServiceDescriptor.Scoped(typeof(IPublisher), sp => (IPublisher)sp.GetRequiredService(dualizorType)));
         }
 
         return services;

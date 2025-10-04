@@ -155,10 +155,10 @@ public sealed class DualisGenerator : IIncrementalGenerator
                         sb.AppendLine($"                IRequestHandler<{req}, {res}> h = serviceProvider.GetRequiredService<IRequestHandler<{req}, {res}>>();");
                         sb.AppendLine($"                Type spBehType = typeof(IPipelineBehavior<{req}, {res}>);");
                         sb.AppendLine($"                IPipelineBehavior<{req}, {res}>[] behaviors;");
-                        sb.AppendLine($"                if (!behaviorCache.TryGetValue(spBehType, out object? bCached)) behaviors = ToArrayCached(serviceProvider.GetServices<IPipelineBehavior<{req}, {res}>>()); else behaviors = (IPipelineBehavior<{req}, {res}>[])bCached;");
+                        sb.AppendLine($"                if (!behaviorCache.TryGetValue(spBehType, out object? bCached)) {{ behaviors = ToArrayCached(serviceProvider.GetServices<IPipelineBehavior<{req}, {res}>>()); behaviorCache.TryAdd(spBehType, behaviors); }} else behaviors = (IPipelineBehavior<{req}, {res}>[])bCached;");
                         sb.AppendLine($"                Type unBehType = typeof(IPipelineBehaviour<{req}, {res}>);");
                         sb.AppendLine($"                IPipelineBehaviour<{req}, {res}>[] unified;");
-                        sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached)) unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{req}, {res}>>()); else unified = (IPipelineBehaviour<{req}, {res}>[])ubCached;");
+                        sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached)) {{ unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{req}, {res}>>()); behaviorCache.TryAdd(unBehType, unified); }} else unified = (IPipelineBehaviour<{req}, {res}>[])ubCached;");
                         sb.AppendLine("                if (behaviors.Length == 0 && unified.Length == 0)");
                         sb.AppendLine("                {");
                         sb.AppendLine("                    var r0 = await h.Handle(r, cancellationToken);");
@@ -202,10 +202,10 @@ public sealed class DualisGenerator : IIncrementalGenerator
                         sb.AppendLine($"                IRequestHandler<{req}> h = serviceProvider.GetRequiredService<IRequestHandler<{req}>>();");
                         sb.AppendLine($"                Type spBehType = typeof(IPipelineBehavior<{req}>);");
                         sb.AppendLine($"                IPipelineBehavior<{req}>[] behaviors;");
-                        sb.AppendLine($"                if (!behaviorCache.TryGetValue(spBehType, out object? bCached)) behaviors = ToArrayCached(serviceProvider.GetServices<IPipelineBehavior<{req}>>()); else behaviors = (IPipelineBehavior<{req}>[])bCached;");
+                        sb.AppendLine($"                if (!behaviorCache.TryGetValue(spBehType, out object? bCached)) {{ behaviors = ToArrayCached(serviceProvider.GetServices<IPipelineBehavior<{req}>>()); behaviorCache.TryAdd(spBehType, behaviors); }} else behaviors = (IPipelineBehavior<{req}>[])bCached;");
                         sb.AppendLine($"                Type unBehType = typeof(IPipelineBehaviour<{req}, Unit>);");
                         sb.AppendLine($"                IPipelineBehaviour<{req}, Unit>[] unified;");
-                        sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached)) unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{req}, Unit>>()); else unified = (IPipelineBehaviour<{req}, Unit>[])ubCached;");
+                        sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached)) {{ unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{req}, Unit>>()); behaviorCache.TryAdd(unBehType, unified); }} else unified = (IPipelineBehaviour<{req}, Unit>[])ubCached;");
                         sb.AppendLine("                if (behaviors.Length == 0 && unified.Length == 0)");
                         sb.AppendLine("                {");
                         sb.AppendLine("                    await h.Handle(r, cancellationToken);");
@@ -213,7 +213,7 @@ public sealed class DualisGenerator : IIncrementalGenerator
                         sb.AppendLine("                }");
                         sb.AppendLine($"                RequestHandlerDelegate next = ct => h.Handle(r, ct);");
                         sb.AppendLine("                for (int i = behaviors.Length - 1; i >= 0; i--) { var b = behaviors[i]; var current = next; next = ct => b.Handle(r, current, ct); }");
-                        sb.AppendLine("                for (int i = unified.Length - 1; i >= 0; i--) { var b = unified[i]; RequestHandlerDelegate<Unit> current = ct => { next(ct); return Task.FromResult(Unit.Value); }; RequestHandlerDelegate<Unit> wrapped = ct => b.Handle(r, current, ct); next = async ct => { await wrapped(ct); }; }");
+                        sb.AppendLine("                for (int i = unified.Length - 1; i >= 0; i--) { var b = unified[i]; RequestHandlerDelegate<Unit> current = async ct => { await next(ct); return Unit.Value; }; RequestHandlerDelegate<Unit> wrapped = ct => b.Handle(r, current, ct); next = async ct => { await wrapped(ct); }; }");
                         sb.AppendLine("                await next(cancellationToken);");
                         sb.AppendLine("                return;");
                         sb.AppendLine("            }");
@@ -259,7 +259,7 @@ public sealed class DualisGenerator : IIncrementalGenerator
                             sb.AppendLine($"                IEnumerable<INotificationHandler<{note}>> handlers = serviceProvider.GetServices<INotificationHandler<{note}>>();");
                             sb.AppendLine($"                Type unBehType = typeof(IPipelineBehaviour<{note}, Unit>);");
                             sb.AppendLine($"                IPipelineBehaviour<{note}, Unit>[] unified;");
-                            sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached)) unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{note}, Unit>>()); else unified = (IPipelineBehaviour<{note}, Unit>[])ubCached;");
+                            sb.AppendLine($"                if (!behaviorCache.TryGetValue(unBehType, out object? ubCached)) {{ unified = ToArrayCached(serviceProvider.GetServices<IPipelineBehaviour<{note}, Unit>>()); behaviorCache.TryAdd(unBehType, unified); }} else unified = (IPipelineBehaviour<{note}, Unit>[])ubCached;");
                             sb.AppendLine("                if (unified.Length == 0)");
                             sb.AppendLine("                {");
                             sb.AppendLine("                    await publisher.Publish(n, handlers, publishContext, cancellationToken);");
@@ -267,7 +267,7 @@ public sealed class DualisGenerator : IIncrementalGenerator
                             sb.AppendLine("                }");
                             sb.AppendLine("                NotificationPublishDelegate next = ct => publisher.Publish(n, handlers, publishContext, ct);");
                             sb.AppendLine("                for (int i = unified.Length - 1; i >= 0; i--)");
-                            sb.AppendLine("                { var b = unified[i]; RequestHandlerDelegate<Unit> current = ct => { var t = next(ct); return t.ContinueWith(_ => Unit.Value, ct); }; RequestHandlerDelegate<Unit> wrapped = ct => b.Handle(n, current, ct); next = async ct => { await wrapped(ct); }; }");
+                            sb.AppendLine("                { var b = unified[i]; RequestHandlerDelegate<Unit> current = async ct => { await next(ct); return Unit.Value; }; RequestHandlerDelegate<Unit> wrapped = ct => b.Handle(n, current, ct); next = async ct => { await wrapped(ct); }; }");
                             sb.AppendLine("                await next(cancellationToken);");
                             sb.AppendLine("                return;");
                             sb.AppendLine("            }");
