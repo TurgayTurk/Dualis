@@ -82,7 +82,7 @@ builder.Services.AddDualis();
 var app = builder.Build();
 ```
 
-2) Define a query and handler (example aligned with samples/DDD.Presentation):
+2) Define a query and handler:
 
 ```
 public sealed record GetUserByNameQuery(string Name) : IRequest<UserDto?>;
