@@ -23,11 +23,11 @@ jobs:
       - name: Restore
         shell: pwsh
         run: |
-          dotnet restore src/SourceGen/SourceGen.csproj
-          dotnet restore src/Dualis/Dualis.csproj
-          dotnet restore tests/SourceGen.Tests/SourceGen.Tests.csproj
-          dotnet restore tests/Dualis.UnitTests/Dualis.UnitTests.csproj
-          dotnet restore tests/Dualis.Benchmarks/Dualis.Benchmarks.csproj
+          dotnet restore src/SourceGen/SourceGen.csproj --configfile .nuget/NuGet.Config
+          dotnet restore src/Dualis/Dualis.csproj --configfile .nuget/NuGet.Config
+          dotnet restore tests/SourceGen.Tests/SourceGen.Tests.csproj --configfile .nuget/NuGet.Config
+          dotnet restore tests/Dualis.UnitTests/Dualis.UnitTests.csproj --configfile .nuget/NuGet.Config
+          dotnet restore tests/Dualis.Benchmarks/Dualis.Benchmarks.csproj --configfile .nuget/NuGet.Config
 
       - name: Build
         shell: pwsh
@@ -45,7 +45,7 @@ jobs:
           dotnet test tests/Dualis.UnitTests/Dualis.UnitTests.csproj -c Release --no-build --verbosity normal
 
       - name: Pack Dualis (includes analyzer assets)
-        run: dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts
+        run: dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts --no-build --configfile .nuget/NuGet.Config
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -69,8 +69,8 @@ jobs:
       - name: Restore
         shell: pwsh
         run: |
-          dotnet restore src/SourceGen/SourceGen.csproj
-          dotnet restore src/Dualis/Dualis.csproj
+          dotnet restore src/SourceGen/SourceGen.csproj --configfile .nuget/NuGet.Config
+          dotnet restore src/Dualis/Dualis.csproj --configfile .nuget/NuGet.Config
 
       - name: Build
         shell: pwsh
@@ -79,7 +79,7 @@ jobs:
           dotnet build src/Dualis/Dualis.csproj -c Release --no-restore
 
       - name: Pack Dualis
-        run: dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts
+        run: dotnet pack src/Dualis/Dualis.csproj -c Release -o ./artifacts --no-build --configfile .nuget/NuGet.Config
 
       - name: Push to NuGet (Dualis)
         shell: pwsh
