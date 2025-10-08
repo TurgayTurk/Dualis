@@ -55,8 +55,11 @@
   </ItemGroup>
 
   <!-- Build the generator before packing this package so the DLL exists -->
-  <Target Name="BuildSourceGenBeforePack" BeforeTargets="Pack">
-    <MSBuild Projects="..\SourceGen\SourceGen.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
+  <Target Name="BuildSourceGenBeforePack" BeforeTargets="Pack" Condition="'$(NoBuild)' != 'true'">
+    <MSBuild Projects="..\SourceGen\SourceGen.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)"
+             Condition="!Exists('..\\SourceGen\\bin\\$(Configuration)\\netstandard2.0\\Dualis.SourceGen.dll')" />
   </Target>
 
   <!-- Include solution README, changelog and icon in the package root -->
