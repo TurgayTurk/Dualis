@@ -28,6 +28,10 @@
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReleaseNotes>See CHANGELOG.md for details: https://github.com/TurgayTurk/Dualis/blob/main/src/Dualis.Analyzer/CHANGELOG.md</PackageReleaseNotes>
 
+    <!-- Analyzer package traits -->
+    <PackageType>Analyzer</PackageType>
+    <DevelopmentDependency>true</DevelopmentDependency>
+
     <!-- Symbols / SourceLink / determinism -->
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
@@ -52,20 +56,29 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Pack the analyzer assembly into analyzers folder -->
-    <None Include="$(TargetPath)" Pack="true" PackagePath="analyzers/dotnet/cs" />
-    <None Include="$(TargetDir)$(AssemblyName).deps.json" Pack="true" PackagePath="analyzers/dotnet/cs" Condition="Exists('$(TargetDir)$(AssemblyName).deps.json')" />
+    <!-- Deterministically include built analyzer into analyzers/ -->
+    <None Include="bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('bin\\$(Configuration)\\$(TargetFramework)\\$(AssemblyName).xml')" />
 
-    <!-- Placeholder to satisfy NuGet analysis: declare TFM in lib to match dependencies group -->
-    <None Include="_._" Pack="true" PackagePath="lib/netstandard2.0/_._" Visible="false" />
-
-    <!-- Include repository assets in package root if present -->
-    <None Include="$(SolutionDir)LICENSE" Pack="true" PackagePath="/" Condition="Exists('$(SolutionDir)LICENSE')" />
-    <None Include="$(SolutionDir)THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" Condition="Exists('$(SolutionDir)THIRD-PARTY-NOTICES.md')" />
-    <None Include="$(SolutionDir)logo.png" Pack="true" PackagePath="/" Visible="false" Condition="Exists('$(SolutionDir)logo.png')" />
+    <!-- Include repository assets in package root using relative paths (SolutionDir is not reliable in pack) -->
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="/" Condition="Exists('..\\..\\LICENSE')" />
+    <None Include="..\..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" Condition="Exists('..\\..\\THIRD-PARTY-NOTICES.md')" />
+    <None Include="..\..\logo.png" Pack="true" PackagePath="/" Visible="false" Condition="Exists('..\\..\\logo.png')" />
 
     <!-- Package local README/CHANGELOG specific to analyzers -->
     <None Include="README.md" Pack="true" PackagePath="/" />
     <None Include="CHANGELOG.md" Pack="true" PackagePath="/" />
   </ItemGroup>
+
+  <!-- Auto-create and add placeholder BEFORE NuGet collects files, so the lib TFM group matches -->
+  <Target Name="EnsureAnalyzerPlaceholder"
+          BeforeTargets="_GetPackageFiles;_CalculateInputsOutputsForPack;GenerateNuspec">
+    <WriteLinesToFile Condition="!Exists('$(MSBuildProjectDirectory)\_._')"
+                      File="$(MSBuildProjectDirectory)\_._"
+                      Lines=""
+                      Overwrite="false" />
+    <ItemGroup>
+      <None Include="$(MSBuildProjectDirectory)\_._" Pack="true" PackagePath="lib/netstandard2.0/_._" Visible="false" />
+    </ItemGroup>
+  </Target>
 </Project>
