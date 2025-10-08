@@ -11,21 +11,38 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <AnalyzerReleaseVersion>0.1.0</AnalyzerReleaseVersion>
     <NoWarn>$(NoWarn);RS2000;RS2007;RS2008</NoWarn>
+
+    <!-- NuGet metadata -->
     <PackageId>Dualis.Analyzers</PackageId>
     <Title>Dualis.Analyzers</Title>
+    <Version>0.1.0</Version>
+    <Authors>Turgay Turk</Authors>
     <Description>Roslyn analyzers for Dualis: usage guidance and best practices.</Description>
+    <PackageTags>mediator;CQRS;analyzer;roslyn;dualis</PackageTags>
     <RepositoryUrl>https://github.com/TurgayTurk/Dualis</RepositoryUrl>
-    <PackageTags>Dualis;Mediator;CQRS;Analyzer;Roslyn</PackageTags>
-    <Authors>Dualis</Authors>
-    <PackageOutputPath>$(MSBuildThisFileDirectory)../../artifacts/</PackageOutputPath>
-    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/TurgayTurk/Dualis</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>logo.png</PackageIcon>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReleaseNotes>See CHANGELOG.md for details: https://github.com/TurgayTurk/Dualis/blob/main/src/Dualis.Analyzer/CHANGELOG.md</PackageReleaseNotes>
+
+    <!-- Symbols / SourceLink / determinism -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <DebugType>portable</DebugType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+    <!-- Output -->
+    <PackageOutputPath>$(MSBuildThisFileDirectory)../../artifacts/</PackageOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>
@@ -38,9 +55,12 @@
     <!-- Pack the analyzer assembly into analyzers folder -->
     <None Include="$(TargetPath)" Pack="true" PackagePath="analyzers/dotnet/cs" />
     <None Include="$(TargetDir)$(AssemblyName).deps.json" Pack="true" PackagePath="analyzers/dotnet/cs" Condition="Exists('$(TargetDir)$(AssemblyName).deps.json')" />
-    <!-- Include repository LICENSE in the package root if present -->
+
+    <!-- Include repository assets in package root if present -->
     <None Include="$(SolutionDir)LICENSE" Pack="true" PackagePath="/" Condition="Exists('$(SolutionDir)LICENSE')" />
     <None Include="$(SolutionDir)THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" Condition="Exists('$(SolutionDir)THIRD-PARTY-NOTICES.md')" />
+    <None Include="$(SolutionDir)logo.png" Pack="true" PackagePath="/" Visible="false" Condition="Exists('$(SolutionDir)logo.png')" />
+
     <!-- Package local README/CHANGELOG specific to analyzers -->
     <None Include="README.md" Pack="true" PackagePath="/" />
     <None Include="CHANGELOG.md" Pack="true" PackagePath="/" />
