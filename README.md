@@ -11,7 +11,7 @@ Fast, lightweight mediator for .NET with unified requests, pipelines, and notifi
 
 ## What's new (0.2.5)
 
-- Added: `Dualis.Analyzer` project. See installation and rule details in the analyzer README: [src/Dualis.Analyzer/README.md](src/Dualis.Analyzer/README.md).
+- Added: `Dualis.Analyzer` project. See installation and rule details in the analyzer README: [src/Dualis.Analyzer/README.md](https://github.com/TurgayTurk/Dualis/blob/main/src/Dualis.Analyzer/README.md).
 - Changed: tiny performance refactoring in the source generator/dispatcher code paths.
 
 See full details in [CHANGELOG.md](https://github.com/TurgayTurk/Dualis/blob/main/CHANGELOG.md).

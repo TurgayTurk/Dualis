@@ -40,7 +40,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
   </ItemGroup>
@@ -55,6 +55,9 @@
     <!-- Pack the analyzer assembly into analyzers folder -->
     <None Include="$(TargetPath)" Pack="true" PackagePath="analyzers/dotnet/cs" />
     <None Include="$(TargetDir)$(AssemblyName).deps.json" Pack="true" PackagePath="analyzers/dotnet/cs" Condition="Exists('$(TargetDir)$(AssemblyName).deps.json')" />
+
+    <!-- Placeholder to satisfy NuGet analysis: declare TFM in lib to match dependencies group -->
+    <None Include="_._" Pack="true" PackagePath="lib/netstandard2.0/_._" Visible="false" />
 
     <!-- Include repository assets in package root if present -->
     <None Include="$(SolutionDir)LICENSE" Pack="true" PackagePath="/" Condition="Exists('$(SolutionDir)LICENSE')" />
