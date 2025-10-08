@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.5] - 2025-10-04
+
+Added
+- `Dualis.Analyzer` project added to the repository. See usage, installation, and rules in [src/Dualis.Analyzer/README.md](src/Dualis.Analyzer/README.md).
+
+Changed
+- Tiny performance refactoring across generator/dispatcher hot paths.
+
+Notes
+- Documentation: Core README "What's new" updated to link the Analyzer README.
+
 ## [0.2.3] - 2025-10-03
 
 Fixed

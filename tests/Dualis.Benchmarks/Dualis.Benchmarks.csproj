@@ -8,13 +8,22 @@
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
     <IsTestProject>false</IsTestProject>
     <OutputType>Exe</OutputType>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <OutputPath>bin\Release\net9.0\</OutputPath>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="Dualis" />
   </ItemGroup>
+  <!-- Remove local project references to avoid solution-wide restore issues for benchmarking -->
+  <!--
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dualis\Dualis.csproj" />
-    <ProjectReference Include="..\..\src\SourceGen\SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\src\SourceGen\SourceGen.csproj"
+					  OutputItemType="Analyzer" 
+					  ReferenceOutputAssembly="false" />
   </ItemGroup>
+  -->
 </Project>

@@ -9,15 +9,10 @@ Fast, lightweight mediator for .NET with unified requests, pipelines, and notifi
 - Notifications: fan-out publish with failure strategies and alternative publishers
 - Public `AddDualis` entry point for DI; source generator augments it in the host project
 
-## What's new (0.2.3)
+## What's new (0.2.5)
 
-- Eliminate extension-method ambiguity (CS0121) in multi-project solutions:
-  - Generator now emits an internal, non-extension method under `Dualis.Generated`:
-    `Dualis.Generated.ServiceCollectionExtensions.AddDualis(IServiceCollection, Action<DualizorOptions>?)`.
-  - The public runtime entry `Dualis.ServiceCollectionExtensions.AddDualis(this IServiceCollection, Action<DualizorOptions>?)` reflectively invokes the generated method when present.
-  - Consumers always call the single public `AddDualis`; generation augments it when enabled.
-- No buildTransitive auto-enable: the package does not force-enable the generator for all referencing projects. Opt-in explicitly in the host.
-- Runtime-first registration remains available via `AddDualisRuntime(...)` for scenarios without generation.
+- Added: `Dualis.Analyzer` project. See installation and rule details in the analyzer README: [src/Dualis.Analyzer/README.md](src/Dualis.Analyzer/README.md).
+- Changed: tiny performance refactoring in the source generator/dispatcher code paths.
 
 See full details in [CHANGELOG.md](https://github.com/TurgayTurk/Dualis/blob/main/CHANGELOG.md).
 

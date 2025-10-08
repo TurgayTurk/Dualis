@@ -5,6 +5,7 @@
   <!-- Common test packages for all test projects -->
   <ItemGroup Condition="'$(IsTestProject)' == 'true'">
     <PackageVersion Include="FluentAssertions" Version="[7.2.0]" />
+    <PackageVersion Include="Microsoft.VisualStudio.DiagnosticsHub.BenchmarkDotNetDiagnosers" Version="17.7.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
@@ -14,10 +15,21 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" />
   </ItemGroup>
+  <!-- Dualis.Analyzer -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Dualis.Analyzer'">
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" />
+  </ItemGroup>
   <!-- SourceGen.Tests specific packages -->
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'SourceGen.Tests'">
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
+  </ItemGroup>
+  <!-- Dualis.Analyzers.Tests specific packages -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Dualis.Analyzers.Tests'">
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2" />
+	<PackageVersion Include="MediatR" Version="[12.5.0]" />
   </ItemGroup>
   <ItemGroup>
     <!-- Core -->
@@ -27,6 +39,8 @@
     <PackageVersion Include="Microsoft.Extensions.Options" Version="9.0.9" />
     <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.15.0.120848" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+    <!-- Pin System.Formats.Asn1 to a secure modern version across the repo -->
+    <PackageVersion Include="System.Formats.Asn1" Version="9.0.9" />
   </ItemGroup>
   <!-- Presentation-only packages -->
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'Presentation'">
@@ -40,8 +54,8 @@
   <ItemGroup>
     <PackageVersion Include="Dualis" Version="0.2.4" />
   </ItemGroup>
-  <!-- Samples: MediatR -->
+  <!-- Ensure .NET reference pack is present in global packages cache without referencing it directly -->
   <ItemGroup>
-    <PackageVersion Include="MediatR" Version="13.0.0" />
+    <PackageDownload Include="Microsoft.NETCore.App.Ref" Version="[9.0.0]" />
   </ItemGroup>
 </Project>
