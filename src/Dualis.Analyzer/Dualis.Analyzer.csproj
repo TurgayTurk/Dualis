@@ -7,6 +7,7 @@
     <LangVersion>latest</LangVersion>
     <IsPackable>true</IsPackable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IncludeContentInPack>true</IncludeContentInPack>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <AnalyzerReleaseVersion>0.1.0</AnalyzerReleaseVersion>
@@ -32,9 +33,10 @@
     <PackageType>Analyzer</PackageType>
     <DevelopmentDependency>true</DevelopmentDependency>
 
-    <!-- Symbols / SourceLink / determinism -->
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <!-- Disable symbols to avoid empty snupkg (NU5017) when IncludeBuildOutput=false -->
+    <IncludeSymbols>false</IncludeSymbols>
+
+    <!-- SourceLink / determinism -->
     <DebugType>portable</DebugType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -56,9 +58,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Deterministically include built analyzer into analyzers/ -->
-    <None Include="bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <None Include="bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('bin\\$(Configuration)\\$(TargetFramework)\\$(AssemblyName).xml')" />
+    <!-- Include built analyzer into analyzers/ -->
+    <None Include="$(TargetPath)" Pack="true" PackagePath="analyzers/dotnet/cs" />
+    <None Include="$(TargetDir)$(AssemblyName).xml" Pack="true" PackagePath="analyzers/dotnet/cs" Condition="Exists('$(TargetDir)$(AssemblyName).xml')" />
+
+    <!-- Physical placeholder in lib TFM group so package always has content -->
+    <None Include="lib\netstandard2.0\_._" Pack="true" PackagePath="lib/netstandard2.0/_._" Visible="false" />
 
     <!-- Include repository assets in package root using relative paths (SolutionDir is not reliable in pack) -->
     <None Include="..\..\LICENSE" Pack="true" PackagePath="/" Condition="Exists('..\\..\\LICENSE')" />
@@ -70,15 +75,4 @@
     <None Include="CHANGELOG.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
-  <!-- Auto-create and add placeholder BEFORE NuGet collects files, so the lib TFM group matches -->
-  <Target Name="EnsureAnalyzerPlaceholder"
-          BeforeTargets="_GetPackageFiles;_CalculateInputsOutputsForPack;GenerateNuspec">
-    <WriteLinesToFile Condition="!Exists('$(MSBuildProjectDirectory)\_._')"
-                      File="$(MSBuildProjectDirectory)\_._"
-                      Lines=""
-                      Overwrite="false" />
-    <ItemGroup>
-      <None Include="$(MSBuildProjectDirectory)\_._" Pack="true" PackagePath="lib/netstandard2.0/_._" Visible="false" />
-    </ItemGroup>
-  </Target>
 </Project>

@@ -18,6 +18,8 @@
 		<RestoreTreatWarningsAsErrors>false</RestoreTreatWarningsAsErrors>
 		<RestoreWarningsAsErrors />
 		<RestoreWarnAsError />
+		<!-- Centralize NuGet package output for pack to the artifacts folder at repo root -->
+		<PackageOutputPath>$(MSBuildThisFileDirectory)artifacts\</PackageOutputPath>
 	</PropertyGroup>
 	
 	<ItemGroup Condition="'$(MSBuildProjectExtensions)' != '.dcproj'">
