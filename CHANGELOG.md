@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2025-10-05
+
+Added
+- Request exception handling contracts:
+  - `IRequestExceptionHandler<TRequest, TResponse, TException>`
+  - `IRequestExceptionAction<TRequest, TException>`
+  - `RequestExceptionState<TResponse>`
+- Exception handling integrated into both generated dispatcher and runtime fallback dispatcher:
+  - Response requests can be handled by exception handlers and return fallback responses.
+  - Unhandled exceptions trigger exception actions, then are rethrown.
+- Registration/discovery support for exception contracts in manual registries, runtime discovery, and source-generated registrations.
+- Unit tests for handled/unhandled flows and exception-type specificity behavior.
+
+Changed
+- Documentation updated in README for request exception handling semantics and registration examples.
+- Version alignment: `Dualis` and `Dualis.Analyzers` are synchronized at `0.3.0`.
+
 ## [0.2.5] - 2025-10-04
 
 Added
