@@ -79,13 +79,15 @@ public sealed class DualisGenerator : IIncrementalGenerator
                 return byProp || byAttr;
             });
 
-        IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> RequestHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)> handlers = SharedHandlerDiscovery.DiscoverHandlers(context);
+        IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> RequestHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestExceptionHandlers, ImmutableArray<ISymbol> RequestExceptionActions, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)> handlers = SharedHandlerDiscovery.DiscoverHandlers(context);
 
         context.RegisterSourceOutput(handlers.Combine(enabled), static (spc, tuple) =>
         {
             ((Compilation Compilation,
               ImmutableArray<ISymbol> RequestHandlers,
               ImmutableArray<ISymbol> NotificationHandlers,
+              ImmutableArray<ISymbol> RequestExceptionHandlers,
+              ImmutableArray<ISymbol> RequestExceptionActions,
               ImmutableArray<ISymbol> RequestBehaviors,
               ImmutableArray<ISymbol> VoidBehaviors,
               ImmutableArray<ISymbol> NotificationBehaviors) source, bool isEnabled) = tuple;
@@ -117,6 +119,7 @@ public sealed class DualisGenerator : IIncrementalGenerator
             w.WriteLine("using System;");
             w.WriteLine("using System.Collections.Generic;");
             w.WriteLine("using System.Collections.Concurrent;");
+            w.WriteLine("using System.Reflection;");
             w.WriteLine("using System.Threading;");
             w.WriteLine("using System.Threading.Tasks;");
             w.WriteLine("using Dualis;");
@@ -141,6 +144,60 @@ public sealed class DualisGenerator : IIncrementalGenerator
             w.CloseBlock();
             w.WriteLine();
             w.WriteLine("private static T[] ToArrayCached<T>(IEnumerable<T> source) => source is T[] arr ? arr : System.Linq.Enumerable.ToArray(source);");
+            w.WriteLine("private static IEnumerable<Type> EnumerateExceptionTypes(Type exceptionType)");
+            w.OpenBlock();
+            w.WriteLine("for (Type? current = exceptionType; current is not null && typeof(Exception).IsAssignableFrom(current); current = current.BaseType)");
+            w.OpenBlock();
+            w.WriteLine("yield return current;");
+            w.CloseBlock();
+            w.CloseBlock();
+            w.WriteLine();
+            w.WriteLine("private static async Task TryExecuteExceptionActions<TRequest>(IServiceProvider serviceProvider, TRequest request, Exception exception, CancellationToken cancellationToken) where TRequest : IRequest");
+            w.OpenBlock();
+            w.WriteLine("Type requestType = typeof(TRequest);");
+            w.WriteLine("foreach (Type exceptionType in EnumerateExceptionTypes(exception.GetType()))");
+            w.OpenBlock();
+            w.WriteLine("Type actionService = typeof(IRequestExceptionAction<,>).MakeGenericType(requestType, exceptionType);");
+            w.WriteLine("Type actionEnumerableType = typeof(IEnumerable<>).MakeGenericType(actionService);");
+            w.WriteLine("object? resolved = serviceProvider.GetService(actionEnumerableType);");
+            w.WriteLine("if (resolved is not System.Collections.IEnumerable actions)");
+            w.OpenBlock();
+            w.WriteLine("continue;");
+            w.CloseBlock();
+            w.WriteLine("MethodInfo executeMethod = actionService.GetMethod(nameof(IRequestExceptionAction<IRequest, Exception>.Execute))!;");
+            w.WriteLine("foreach (object action in actions)");
+            w.OpenBlock();
+            w.WriteLine("await (Task)executeMethod.Invoke(action, [request, exception, cancellationToken])!;");
+            w.CloseBlock();
+            w.CloseBlock();
+            w.CloseBlock();
+            w.WriteLine();
+            w.WriteLine("private static async Task<(bool handled, TResponse response)> TryHandleRequestException<TRequest, TResponse>(IServiceProvider serviceProvider, TRequest request, Exception exception, CancellationToken cancellationToken) where TRequest : IRequest<TResponse>");
+            w.OpenBlock();
+            w.WriteLine("Type requestType = typeof(TRequest);");
+            w.WriteLine("Type responseType = typeof(TResponse);");
+            w.WriteLine("RequestExceptionState<TResponse> state = new();");
+            w.WriteLine("foreach (Type exceptionType in EnumerateExceptionTypes(exception.GetType()))");
+            w.OpenBlock();
+            w.WriteLine("Type handlerService = typeof(IRequestExceptionHandler<,,>).MakeGenericType(requestType, responseType, exceptionType);");
+            w.WriteLine("Type handlerEnumerableType = typeof(IEnumerable<>).MakeGenericType(handlerService);");
+            w.WriteLine("object? resolved = serviceProvider.GetService(handlerEnumerableType);");
+            w.WriteLine("if (resolved is not System.Collections.IEnumerable handlers)");
+            w.OpenBlock();
+            w.WriteLine("continue;");
+            w.CloseBlock();
+            w.WriteLine("MethodInfo handleMethod = handlerService.GetMethod(nameof(IRequestExceptionHandler<IRequest<TResponse>, TResponse, Exception>.Handle))!;");
+            w.WriteLine("foreach (object handler in handlers)");
+            w.OpenBlock();
+            w.WriteLine("await (Task)handleMethod.Invoke(handler, [request, exception, state, cancellationToken])!;");
+            w.WriteLine("if (state.Handled)");
+            w.OpenBlock();
+            w.WriteLine("return (true, state.Response!);");
+            w.CloseBlock();
+            w.CloseBlock();
+            w.CloseBlock();
+            w.WriteLine("return (false, default!);");
+            w.CloseBlock();
             w.WriteLine();
 
             // IRequest<TResponse>
@@ -168,8 +225,21 @@ public sealed class DualisGenerator : IIncrementalGenerator
                         w.WriteLine("bool known = hasBehaviors.TryGetValue(pipeKey, out bool has);");
                         w.WriteLine("if (known && !has)");
                         w.OpenBlock();
+                        w.WriteLine("try");
+                        w.OpenBlock();
                         w.WriteLine("var r0 = await h.Handle(r, cancellationToken);");
                         w.WriteLine("return (TResponse)(object)r0!;");
+                        w.CloseBlock();
+                        w.WriteLine("catch (Exception ex)");
+                        w.OpenBlock();
+                        w.WriteLine($"var handled = await TryHandleRequestException<{req}, {res}>(serviceProvider, r, ex, cancellationToken);");
+                        w.WriteLine("if (handled.handled)");
+                        w.OpenBlock();
+                        w.WriteLine("return (TResponse)(object)handled.response!;");
+                        w.CloseBlock();
+                        w.WriteLine($"await TryExecuteExceptionActions<{req}>(serviceProvider, r, ex, cancellationToken);");
+                        w.WriteLine("throw;");
+                        w.CloseBlock();
                         w.CloseBlock();
                         w.WriteLine($"Type spBehType = typeof(IPipelineBehavior<{req}, {res}>);");
                         w.WriteLine($"Type unBehType = typeof(IPipelineBehaviour<{req}, {res}>);");
@@ -183,15 +253,41 @@ public sealed class DualisGenerator : IIncrementalGenerator
                         w.WriteLine("hasBehaviors.TryAdd(pipeKey, has);");
                         w.WriteLine("if (!has)");
                         w.OpenBlock();
+                        w.WriteLine("try");
+                        w.OpenBlock();
                         w.WriteLine("var rx = await h.Handle(r, cancellationToken);");
                         w.WriteLine("return (TResponse)(object)rx!;");
+                        w.CloseBlock();
+                        w.WriteLine("catch (Exception ex)");
+                        w.OpenBlock();
+                        w.WriteLine($"var handled = await TryHandleRequestException<{req}, {res}>(serviceProvider, r, ex, cancellationToken);");
+                        w.WriteLine("if (handled.handled)");
+                        w.OpenBlock();
+                        w.WriteLine("return (TResponse)(object)handled.response!;");
+                        w.CloseBlock();
+                        w.WriteLine($"await TryExecuteExceptionActions<{req}>(serviceProvider, r, ex, cancellationToken);");
+                        w.WriteLine("throw;");
+                        w.CloseBlock();
                         w.CloseBlock();
                         w.CloseBlock();
                         w.WriteLine($"RequestHandlerDelegate<{res}> next = ct => h.Handle(r, ct);");
                         w.WriteLine("for (int i = behaviors.Length - 1; i >= 0; i--) { var b = behaviors[i]; var current = next; next = ct => b.Handle(r, current, ct); }");
                         w.WriteLine("for (int i = unified.Length - 1; i >= 0; i--) { var b = unified[i]; var current = next; next = ct => b.Handle(r, current, ct); }");
+                        w.WriteLine("try");
+                        w.OpenBlock();
                         w.WriteLine("var result = await next(cancellationToken);");
                         w.WriteLine("return (TResponse)(object)result!;");
+                        w.CloseBlock();
+                        w.WriteLine("catch (Exception ex)");
+                        w.OpenBlock();
+                        w.WriteLine($"var handled = await TryHandleRequestException<{req}, {res}>(serviceProvider, r, ex, cancellationToken);");
+                        w.WriteLine("if (handled.handled)");
+                        w.OpenBlock();
+                        w.WriteLine("return (TResponse)(object)handled.response!;");
+                        w.CloseBlock();
+                        w.WriteLine($"await TryExecuteExceptionActions<{req}>(serviceProvider, r, ex, cancellationToken);");
+                        w.WriteLine("throw;");
+                        w.CloseBlock();
                         w.CloseBlock();
                     }
                 }
@@ -226,8 +322,16 @@ public sealed class DualisGenerator : IIncrementalGenerator
                         w.WriteLine("bool known = hasBehaviors.TryGetValue(pipeKey, out bool has);");
                         w.WriteLine("if (known && !has)");
                         w.OpenBlock();
+                        w.WriteLine("try");
+                        w.OpenBlock();
                         w.WriteLine("await h.Handle(r, cancellationToken);");
                         w.WriteLine("return;");
+                        w.CloseBlock();
+                        w.WriteLine("catch (Exception ex)");
+                        w.OpenBlock();
+                        w.WriteLine($"await TryExecuteExceptionActions<{req}>(serviceProvider, r, ex, cancellationToken);");
+                        w.WriteLine("throw;");
+                        w.CloseBlock();
                         w.CloseBlock();
                         w.WriteLine($"Type spBehType = typeof(IPipelineBehavior<{req}>);");
                         w.WriteLine($"Type unBehType = typeof(IPipelineBehaviour<{req}, Unit>);");
@@ -241,15 +345,31 @@ public sealed class DualisGenerator : IIncrementalGenerator
                         w.WriteLine("hasBehaviors.TryAdd(pipeKey, has);");
                         w.WriteLine("if (!has)");
                         w.OpenBlock();
+                        w.WriteLine("try");
+                        w.OpenBlock();
                         w.WriteLine("await h.Handle(r, cancellationToken);");
                         w.WriteLine("return;");
+                        w.CloseBlock();
+                        w.WriteLine("catch (Exception ex)");
+                        w.OpenBlock();
+                        w.WriteLine($"await TryExecuteExceptionActions<{req}>(serviceProvider, r, ex, cancellationToken);");
+                        w.WriteLine("throw;");
+                        w.CloseBlock();
                         w.CloseBlock();
                         w.CloseBlock();
                         w.WriteLine($"RequestHandlerDelegate next = ct => h.Handle(r, ct);");
                         w.WriteLine("for (int i = behaviors.Length - 1; i >= 0; i--) { var b = behaviors[i]; var current = next; next = ct => b.Handle(r, current, ct); }");
                         w.WriteLine("for (int i = unified.Length - 1; i >= 0; i--) { var b = unified[i]; RequestHandlerDelegate<Unit> current = async ct => { await next(ct); return Unit.Value; }; RequestHandlerDelegate<Unit> wrapped = ct => b.Handle(r, current, ct); next = async ct => { await wrapped(ct); }; }");
+                        w.WriteLine("try");
+                        w.OpenBlock();
                         w.WriteLine("await next(cancellationToken);");
                         w.WriteLine("return;");
+                        w.CloseBlock();
+                        w.WriteLine("catch (Exception ex)");
+                        w.OpenBlock();
+                        w.WriteLine($"await TryExecuteExceptionActions<{req}>(serviceProvider, r, ex, cancellationToken);");
+                        w.WriteLine("throw;");
+                        w.CloseBlock();
                         w.CloseBlock();
                     }
                 }

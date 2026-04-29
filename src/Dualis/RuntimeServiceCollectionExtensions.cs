@@ -189,19 +189,25 @@ public static class RuntimeServiceCollectionExtensions
                     }
 
                     Type def = iface.GetGenericTypeDefinition();
-                    if (def == typeof(IRequestHandler<,>) || def == typeof(IRequestHandler<>))
+                    bool supported = def == typeof(IRequestHandler<,>)
+                                     || def == typeof(IRequestHandler<>)
+                                     || def == typeof(IRequestExceptionHandler<,,>)
+                                     || def == typeof(IRequestExceptionAction<,>);
+                    if (!supported)
                     {
-                        // Only register closed generics
-                        if (iface.ContainsGenericParameters)
-                        {
-                            continue;
-                        }
+                        continue;
+                    }
 
-                        // Avoid duplicates
-                        if (!ServiceExists(services, iface, t, ServiceLifetime.Scoped))
-                        {
-                            services.TryAdd(new ServiceDescriptor(iface, t, ServiceLifetime.Scoped));
-                        }
+                    // Only register closed generics
+                    if (iface.ContainsGenericParameters)
+                    {
+                        continue;
+                    }
+
+                    // Avoid duplicates
+                    if (!ServiceExists(services, iface, t, ServiceLifetime.Scoped))
+                    {
+                        services.TryAdd(new ServiceDescriptor(iface, t, ServiceLifetime.Scoped));
                     }
                 }
             }

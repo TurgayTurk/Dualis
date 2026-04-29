@@ -5,6 +5,7 @@
 Fast, lightweight mediator for .NET with unified requests, pipelines, and notifications. Dualis uses a Roslyn source generator to emit dispatcher and DI registration code at build time, keeping runtime overhead and allocations low while offering a clean, opinionated API.
 
 - Requests: `IRequest`/`IRequest<T>` with `IRequestHandler<>`/`IRequestHandler<,>`
+- Request exceptions: `IRequestExceptionHandler<,,>` and `IRequestExceptionAction<,>`
 - Pipelines: request/response and void pipeline behaviors (plus unified behaviour option)
 - Notifications: fan-out publish with failure strategies and alternative publishers
 - Public `AddDualis` entry point for DI; source generator augments it in the host project
@@ -127,6 +128,10 @@ builder.Services.AddDualis(opts =>
     // You can also register handlers via DI if preferred
     // services.AddScoped<IRequestHandler<GetUserByNameQuery, UserDto?>, GetUserByNameQueryHandler>();
 
+    // Request exception contracts can also be registered manually
+    opts.CQRS.Register<GetUserByNameExceptionHandler>();
+    opts.CQRS.Register<GetUserByNameExceptionAction>();
+
     // Notifications: choose publisher and failure policy
     opts.NotificationPublisherFactory = sp => sp.GetRequiredService<ParallelWhenAllNotificationPublisher>();
     opts.NotificationFailureBehavior = NotificationFailureBehavior.ContinueAndAggregate;
@@ -167,6 +172,21 @@ services.AddDualisRuntime(opts =>
 Requirements:
 - Handler and behavior types in referenced assemblies must be `public` (or visible via `InternalsVisibleTo` to the host).
 - Other projects should NOT enable the generator.
+
+## Request exception handling
+
+Dualis supports MediatR-like request exception contracts:
+
+- `IRequestExceptionHandler<TRequest, TResponse, TException>`
+- `IRequestExceptionAction<TRequest, TException>`
+- `RequestExceptionState<TResponse>`
+
+Runtime behavior for `Send`:
+
+1. Execute handler/pipeline.
+2. If an exception is thrown, run matching `IRequestExceptionHandler` implementations from most specific exception type to base types.
+3. If a handler marks `state.SetHandled(response)`, return that response.
+4. If still unhandled, run matching `IRequestExceptionAction` implementations and rethrow.
 
 ## Pipelines
 

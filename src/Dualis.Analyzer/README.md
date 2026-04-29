@@ -12,6 +12,8 @@ Added rules:
 - DULIS005 (Warning): Handler request type does not implement the required IRequest shape.
 - DULIS006 (Warning): No INotificationHandler found for published notification type.
 - DULIS007 (Info): CancellationToken available in scope but not passed to Send/Publish.
+- DULIS014 (Warning): Exception contract request type does not implement the required IRequest shape.
+- DULIS015 (Warning): Multiple IRequestExceptionHandler implementations found for the same exception contract.
 - DULIS013 (Info): Avoid service locator – resolve ISender/IPublisher/IDualizor via constructor injection.
 
 ## What's new (0.1.0)
@@ -44,6 +46,10 @@ See full details in [CHANGELOG.md](https://github.com/TurgayTurk/Dualis/blob/mai
   - Suggests passing the in-scope CancellationToken to Send/Publish.
 - DULIS013 (Info): Service locator usage for Dualis services
   - Suggests preferring constructor injection over IServiceProvider.GetRequiredService for Dualis abstractions.
+- DULIS014 (Warning): Exception contract request type not implementing required IRequest shape
+  - Validates IRequestExceptionHandler<TRequest, TResponse, TException> requires TRequest : IRequest<TResponse>, and IRequestExceptionAction<TRequest, TException> requires TRequest : IRequest.
+- DULIS015 (Warning): Multiple IRequestExceptionHandler implementations found for same exception contract
+  - Detects duplicate IRequestExceptionHandler<TRequest, TResponse, TException> contracts which can create ambiguous handling order.
 
 ## Enable the Dualis generator (host)
 - MSBuild property (recommended):

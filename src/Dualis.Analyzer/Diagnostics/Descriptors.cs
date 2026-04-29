@@ -105,4 +105,30 @@ internal static class Descriptors
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
         description: "Prefer constructor injection of ISender, IPublisher, or IDualizor rather than resolving them via IServiceProvider.");
+
+    /// <summary>
+    /// Warning emitted when exception handler/action request type does not implement the required IRequest shape.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DULIS014_MismatchedExceptionHandlerRequest = new(
+        id: "DULIS014",
+        title: "Exception contract request type does not implement the required IRequest shape",
+        messageFormat: "Request type '{0}' must implement '{1}' to be used with this exception contract",
+        category: "Correctness",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "IRequestExceptionHandler<TRequest, TResponse, TException> requires TRequest : IRequest<TResponse>, and IRequestExceptionAction<TRequest, TException> requires TRequest : IRequest.",
+        customTags: "CompilationEnd");
+
+    /// <summary>
+    /// Warning emitted when multiple exception handlers exist for the same request/response/exception contract.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DULIS015_DuplicateExceptionHandlers = new(
+        id: "DULIS015",
+        title: "Multiple IRequestExceptionHandler implementations found for the same exception contract",
+        messageFormat: "Multiple IRequestExceptionHandler implementations were found for request '{0}', response '{1}', exception '{2}'",
+        category: "Usage",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "More than one IRequestExceptionHandler was discovered for the same request/response/exception contract. First handler that marks handled wins based on registration order.",
+        customTags: "CompilationEnd");
 }

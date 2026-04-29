@@ -10,13 +10,13 @@
     <IncludeContentInPack>true</IncludeContentInPack>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-    <AnalyzerReleaseVersion>0.1.0</AnalyzerReleaseVersion>
+    <AnalyzerReleaseVersion>0.3.0</AnalyzerReleaseVersion>
     <NoWarn>$(NoWarn);RS2000;RS2007;RS2008</NoWarn>
 
     <!-- NuGet metadata -->
     <PackageId>Dualis.Analyzers</PackageId>
     <Title>Dualis.Analyzers</Title>
-    <Version>0.1.0</Version>
+    <Version>0.3.0</Version>
     <Authors>Turgay Turk</Authors>
     <Description>Roslyn analyzers for Dualis: usage guidance and best practices.</Description>
     <PackageTags>mediator;CQRS;analyzer;roslyn;dualis</PackageTags>

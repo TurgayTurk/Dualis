@@ -19,7 +19,7 @@ internal static class SharedHandlerDiscovery
     /// <returns>
     /// A provider that yields the compilation and the collected handler/behavior symbols.
     /// </returns>
-    public static IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> RequestHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)>
+    public static IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> RequestHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestExceptionHandlers, ImmutableArray<ISymbol> RequestExceptionActions, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)>
         DiscoverHandlers(IncrementalGeneratorInitializationContext context)
     {
         IncrementalValuesProvider<INamedTypeSymbol> candidateTypes = context.SyntaxProvider
@@ -39,13 +39,15 @@ internal static class SharedHandlerDiscovery
 
             ImmutableArray<ISymbol>.Builder requestHandlers = ImmutableArray.CreateBuilder<ISymbol>();
             ImmutableArray<ISymbol>.Builder notificationHandlers = ImmutableArray.CreateBuilder<ISymbol>();
+            ImmutableArray<ISymbol>.Builder requestExceptionHandlers = ImmutableArray.CreateBuilder<ISymbol>();
+            ImmutableArray<ISymbol>.Builder requestExceptionActions = ImmutableArray.CreateBuilder<ISymbol>();
             ImmutableArray<ISymbol>.Builder requestBehaviors = ImmutableArray.CreateBuilder<ISymbol>();
             ImmutableArray<ISymbol>.Builder voidBehaviors = ImmutableArray.CreateBuilder<ISymbol>();
             ImmutableArray<ISymbol>.Builder notificationBehaviors = ImmutableArray.CreateBuilder<ISymbol>();
 
             // In-project discovery (current behavior)
             ClassifyHandlersAndBehaviors(types, requestHandlers,
-                notificationHandlers, requestBehaviors, voidBehaviors, notificationBehaviors);
+                notificationHandlers, requestExceptionHandlers, requestExceptionActions, requestBehaviors, voidBehaviors, notificationBehaviors);
 
             // Cross-assembly discovery (new): scan referenced assemblies for public, non-abstract classes
             foreach (MetadataReference reference in compilation.References)
@@ -77,7 +79,7 @@ internal static class SharedHandlerDiscovery
                     }
 
                     ClassifySingleType(type, requestHandlers,
-                        notificationHandlers, requestBehaviors, voidBehaviors, notificationBehaviors);
+                        notificationHandlers, requestExceptionHandlers, requestExceptionActions, requestBehaviors, voidBehaviors, notificationBehaviors);
                 }
             }
 
@@ -85,6 +87,8 @@ internal static class SharedHandlerDiscovery
                 compilation,
                 requestHandlers.ToImmutable(),
                 notificationHandlers.ToImmutable(),
+                requestExceptionHandlers.ToImmutable(),
+                requestExceptionActions.ToImmutable(),
                 requestBehaviors.ToImmutable(),
                 voidBehaviors.ToImmutable(),
                 notificationBehaviors.ToImmutable());
@@ -95,6 +99,8 @@ internal static class SharedHandlerDiscovery
         ImmutableArray<INamedTypeSymbol> types,
         ImmutableArray<ISymbol>.Builder requestHandlers,
         ImmutableArray<ISymbol>.Builder notificationHandlers,
+        ImmutableArray<ISymbol>.Builder requestExceptionHandlers,
+        ImmutableArray<ISymbol>.Builder requestExceptionActions,
         ImmutableArray<ISymbol>.Builder requestBehaviors,
         ImmutableArray<ISymbol>.Builder voidBehaviors,
         ImmutableArray<ISymbol>.Builder notificationBehaviors)
@@ -102,7 +108,7 @@ internal static class SharedHandlerDiscovery
         foreach (INamedTypeSymbol type in types)
         {
             ClassifySingleType(type, requestHandlers,
-                notificationHandlers, requestBehaviors, voidBehaviors, notificationBehaviors);
+                notificationHandlers, requestExceptionHandlers, requestExceptionActions, requestBehaviors, voidBehaviors, notificationBehaviors);
         }
     }
 
@@ -110,6 +116,8 @@ internal static class SharedHandlerDiscovery
         INamedTypeSymbol type,
         ImmutableArray<ISymbol>.Builder requestHandlers,
         ImmutableArray<ISymbol>.Builder notificationHandlers,
+        ImmutableArray<ISymbol>.Builder requestExceptionHandlers,
+        ImmutableArray<ISymbol>.Builder requestExceptionActions,
         ImmutableArray<ISymbol>.Builder requestBehaviors,
         ImmutableArray<ISymbol>.Builder voidBehaviors,
         ImmutableArray<ISymbol>.Builder notificationBehaviors)
@@ -120,6 +128,14 @@ internal static class SharedHandlerDiscovery
             if (iface.Name == "IRequestHandler" && ns == "global::Dualis.CQRS")
             {
                 requestHandlers.Add(type);
+            }
+            else if (iface.Name == "IRequestExceptionHandler" && ns == "global::Dualis.CQRS" && iface.TypeArguments.Length == 3)
+            {
+                requestExceptionHandlers.Add(type);
+            }
+            else if (iface.Name == "IRequestExceptionAction" && ns == "global::Dualis.CQRS" && iface.TypeArguments.Length == 2)
+            {
+                requestExceptionActions.Add(type);
             }
             else if (iface.Name == "INotificationHandler" && ns == "global::Dualis.Notifications")
             {

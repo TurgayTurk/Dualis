@@ -5,3 +5,5 @@ DULIS005: Handler request type does not implement the required IRequest shape
 DULIS006: No INotificationHandler found for notification type
 DULIS007: CancellationToken available in scope but not passed to Send/Publish
 DULIS013: Avoid service locator for Dualis services – prefer DI
+DULIS014: Exception contract request type does not implement the required IRequest shape
+DULIS015: Multiple IRequestExceptionHandler implementations found for the same exception contract

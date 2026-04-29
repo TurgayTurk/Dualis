@@ -75,7 +75,10 @@ public sealed class CqrsRegistry
 
             Type def = iface.GetGenericTypeDefinition();
 
-            bool isSupported = def == typeof(IRequestHandler<,>) || def == typeof(IRequestHandler<>);
+            bool isSupported = def == typeof(IRequestHandler<,>)
+                               || def == typeof(IRequestHandler<>)
+                               || def == typeof(IRequestExceptionHandler<,,>)
+                               || def == typeof(IRequestExceptionAction<,>);
             if (!isSupported)
             {
                 continue;

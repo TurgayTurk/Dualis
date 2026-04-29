@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Dualis.CQRS;
 using Dualis.Notifications;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,22 +15,64 @@ internal sealed class FallbackDualizor(
     INotificationPublisher publisher,
     NotificationPublishContext publishContext) : IDualizor, ISender, IPublisher
 {
-    public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+    public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
     {
         Type reqType = request.GetType();
         Type handlerType = typeof(IRequestHandler<,>).MakeGenericType(reqType, typeof(TResponse));
         object handler = serviceProvider.GetRequiredService(handlerType);
         MethodInfo mi = handlerType.GetMethod("Handle")!;
-        return (Task<TResponse>)mi.Invoke(handler, [request, cancellationToken])!;
+
+        try
+        {
+            return await (Task<TResponse>)mi.Invoke(handler, [request, cancellationToken])!;
+        }
+        catch (TargetInvocationException tie) when (tie.InnerException is not null)
+        {
+            (bool handled, TResponse response) = await TryHandleRequestException<TResponse>(request, tie.InnerException, cancellationToken);
+            if (handled)
+            {
+                return response;
+            }
+
+            await TryExecuteExceptionActions(request, tie.InnerException, cancellationToken);
+            ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
+            throw;
+        }
+        catch (Exception ex)
+        {
+            (bool handled, TResponse response) = await TryHandleRequestException<TResponse>(request, ex, cancellationToken);
+            if (handled)
+            {
+                return response;
+            }
+
+            await TryExecuteExceptionActions(request, ex, cancellationToken);
+            throw;
+        }
     }
 
-    public Task Send(IRequest request, CancellationToken cancellationToken = default)
+    public async Task Send(IRequest request, CancellationToken cancellationToken = default)
     {
         Type reqType = request.GetType();
         Type handlerType = typeof(IRequestHandler<>).MakeGenericType(reqType);
         object handler = serviceProvider.GetRequiredService(handlerType);
         MethodInfo mi = handlerType.GetMethod("Handle")!;
-        return (Task)mi.Invoke(handler, [request, cancellationToken])!;
+
+        try
+        {
+            await (Task)mi.Invoke(handler, [request, cancellationToken])!;
+        }
+        catch (TargetInvocationException tie) when (tie.InnerException is not null)
+        {
+            await TryExecuteExceptionActions(request, tie.InnerException, cancellationToken);
+            ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await TryExecuteExceptionActions(request, ex, cancellationToken);
+            throw;
+        }
     }
 
     public async Task Publish(INotification notification, CancellationToken cancellationToken = default)
@@ -61,6 +104,66 @@ internal sealed class FallbackDualizor(
                 .MakeGenericMethod(noteType);
 
             await (Task)genericPublish.Invoke(publisher, [notification, enumerableHandlers!, publishContext, cancellationToken])!;
+        }
+    }
+
+    private async Task<(bool handled, TResponse response)> TryHandleRequestException<TResponse>(IRequest<TResponse> request, Exception exception, CancellationToken cancellationToken)
+    {
+        Type requestType = request.GetType();
+        Type responseType = typeof(TResponse);
+        RequestExceptionState<TResponse> state = new();
+
+        foreach (Type exceptionType in EnumerateExceptionTypes(exception.GetType()))
+        {
+            Type handlerServiceType = typeof(IRequestExceptionHandler<,,>).MakeGenericType(requestType, responseType, exceptionType);
+            Type enumerableType = typeof(IEnumerable<>).MakeGenericType(handlerServiceType);
+            object? resolved = serviceProvider.GetService(enumerableType);
+            if (resolved is not System.Collections.IEnumerable handlers)
+            {
+                continue;
+            }
+
+            MethodInfo handleMethod = handlerServiceType.GetMethod(nameof(IRequestExceptionHandler<,,>.Handle))!;
+            foreach (object handler in handlers)
+            {
+                await (Task)handleMethod.Invoke(handler, [request, exception, state, cancellationToken])!;
+                if (state.Handled)
+                {
+                    return (true, state.Response!);
+                }
+            }
+        }
+
+        return (false, default!);
+    }
+
+    private async Task TryExecuteExceptionActions(IRequest request, Exception exception, CancellationToken cancellationToken)
+    {
+        Type requestType = request.GetType();
+
+        foreach (Type exceptionType in EnumerateExceptionTypes(exception.GetType()))
+        {
+            Type actionServiceType = typeof(IRequestExceptionAction<,>).MakeGenericType(requestType, exceptionType);
+            Type enumerableType = typeof(IEnumerable<>).MakeGenericType(actionServiceType);
+            object? resolved = serviceProvider.GetService(enumerableType);
+            if (resolved is not System.Collections.IEnumerable actions)
+            {
+                continue;
+            }
+
+            MethodInfo executeMethod = actionServiceType.GetMethod(nameof(IRequestExceptionAction<,>.Execute))!;
+            foreach (object action in actions)
+            {
+                await (Task)executeMethod.Invoke(action, [request, exception, cancellationToken])!;
+            }
+        }
+    }
+
+    private static IEnumerable<Type> EnumerateExceptionTypes(Type exceptionType)
+    {
+        for (Type? current = exceptionType; current is not null && typeof(Exception).IsAssignableFrom(current); current = current.BaseType)
+        {
+            yield return current;
         }
     }
 }

@@ -81,13 +81,15 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
                 return byProp || byAttr;
             });
 
-        IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> RequestHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)> items = SharedHandlerDiscovery.DiscoverHandlers(context);
+        IncrementalValueProvider<(Compilation Compilation, ImmutableArray<ISymbol> RequestHandlers, ImmutableArray<ISymbol> NotificationHandlers, ImmutableArray<ISymbol> RequestExceptionHandlers, ImmutableArray<ISymbol> RequestExceptionActions, ImmutableArray<ISymbol> RequestBehaviors, ImmutableArray<ISymbol> VoidBehaviors, ImmutableArray<ISymbol> NotificationBehaviors)> items = SharedHandlerDiscovery.DiscoverHandlers(context);
 
         context.RegisterSourceOutput(items.Combine(enabled), static (spc, tuple) =>
         {
             ((Compilation Compilation,
               ImmutableArray<ISymbol> RequestHandlers,
               ImmutableArray<ISymbol> NotificationHandlers,
+              ImmutableArray<ISymbol> RequestExceptionHandlers,
+              ImmutableArray<ISymbol> RequestExceptionActions,
               ImmutableArray<ISymbol> RequestBehaviors,
               ImmutableArray<ISymbol> VoidBehaviors,
               ImmutableArray<ISymbol> NotificationBehaviors) source, bool isEnabled) = tuple;
@@ -98,11 +100,15 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
 
             ImmutableArray<ISymbol> requestHandlers = source.RequestHandlers;
             ImmutableArray<ISymbol> notificationHandlers = source.NotificationHandlers;
+            ImmutableArray<ISymbol> requestExceptionHandlers = source.RequestExceptionHandlers;
+            ImmutableArray<ISymbol> requestExceptionActions = source.RequestExceptionActions;
             ImmutableArray<ISymbol> requestBehaviors = source.RequestBehaviors;
             ImmutableArray<ISymbol> voidBehaviors = source.VoidBehaviors;
 
             int estimatedCapacity = 1024
                 + requestHandlers.Length * 160
+                + requestExceptionHandlers.Length * 160
+                + requestExceptionActions.Length * 140
                 + notificationHandlers.Length * 120
                 + requestBehaviors.Length * 100
                 + voidBehaviors.Length * 80;
@@ -182,6 +188,10 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
             w.OpenBlock();
             w.WriteLine("// IRequestHandler registrations");
             AppendRequestHandlerRegistrations(w, requestHandlers);
+            w.WriteLine("// IRequestExceptionHandler registrations");
+            AppendRequestExceptionHandlerRegistrations(w, requestExceptionHandlers);
+            w.WriteLine("// IRequestExceptionAction registrations");
+            AppendRequestExceptionActionRegistrations(w, requestExceptionActions);
             w.CloseBlock();
             w.WriteLine();
             w.WriteLine("if (autoRegisterNotificationHandlers)");
@@ -383,6 +393,104 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
                     {
                         w.WriteLine($"services.TryAddScoped<{ifaceFull}<{requestType}>, {handlerName}>();");
                     }
+                }
+            }
+        }
+    }
+
+    private static void AppendRequestExceptionHandlerRegistrations(CodeWriter w, ImmutableArray<ISymbol> exceptionHandlers)
+    {
+        HashSet<string> emitted = [];
+        foreach (INamedTypeSymbol handlerSymbol in exceptionHandlers.OfType<INamedTypeSymbol>())
+        {
+            if (handlerSymbol.TypeKind != TypeKind.Class || handlerSymbol.IsAbstract)
+            {
+                continue;
+            }
+
+            IEnumerable<INamedTypeSymbol> ifaceMatches = handlerSymbol.AllInterfaces
+                .Where(i => i.Name == "IRequestExceptionHandler"
+                            && i.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Dualis.CQRS"
+                            && i.TypeArguments.Length == 3);
+
+            foreach (INamedTypeSymbol iface in ifaceMatches)
+            {
+                string service;
+                string impl;
+
+                if (HasTypeParameters(iface))
+                {
+                    if (!handlerSymbol.IsUnboundGenericType && !handlerSymbol.IsGenericType)
+                    {
+                        continue;
+                    }
+
+                    string openService = iface.ConstructUnboundGenericType().ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    string openImpl = (handlerSymbol.IsUnboundGenericType ? handlerSymbol : handlerSymbol.ConstructUnboundGenericType()).ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    service = $"typeof({openService})";
+                    impl = $"typeof({openImpl})";
+                }
+                else
+                {
+                    string closedService = iface.ToDisplayString(FullyQualifiedWithNullability);
+                    string implType = handlerSymbol.ToDisplayString(FullyQualifiedWithNullability);
+                    service = $"typeof({closedService})";
+                    impl = $"typeof({implType})";
+                }
+
+                string key = $"EH|{service}|{impl}";
+                if (emitted.Add(key))
+                {
+                    w.WriteLine($"services.TryAddEnumerable(ServiceDescriptor.Scoped({service}, {impl}));");
+                }
+            }
+        }
+    }
+
+    private static void AppendRequestExceptionActionRegistrations(CodeWriter w, ImmutableArray<ISymbol> exceptionActions)
+    {
+        HashSet<string> emitted = [];
+        foreach (INamedTypeSymbol actionSymbol in exceptionActions.OfType<INamedTypeSymbol>())
+        {
+            if (actionSymbol.TypeKind != TypeKind.Class || actionSymbol.IsAbstract)
+            {
+                continue;
+            }
+
+            IEnumerable<INamedTypeSymbol> ifaceMatches = actionSymbol.AllInterfaces
+                .Where(i => i.Name == "IRequestExceptionAction"
+                            && i.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Dualis.CQRS"
+                            && i.TypeArguments.Length == 2);
+
+            foreach (INamedTypeSymbol iface in ifaceMatches)
+            {
+                string service;
+                string impl;
+
+                if (HasTypeParameters(iface))
+                {
+                    if (!actionSymbol.IsUnboundGenericType && !actionSymbol.IsGenericType)
+                    {
+                        continue;
+                    }
+
+                    string openService = iface.ConstructUnboundGenericType().ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    string openImpl = (actionSymbol.IsUnboundGenericType ? actionSymbol : actionSymbol.ConstructUnboundGenericType()).ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    service = $"typeof({openService})";
+                    impl = $"typeof({openImpl})";
+                }
+                else
+                {
+                    string closedService = iface.ToDisplayString(FullyQualifiedWithNullability);
+                    string implType = actionSymbol.ToDisplayString(FullyQualifiedWithNullability);
+                    service = $"typeof({closedService})";
+                    impl = $"typeof({implType})";
+                }
+
+                string key = $"EA|{service}|{impl}";
+                if (emitted.Add(key))
+                {
+                    w.WriteLine($"services.TryAddEnumerable(ServiceDescriptor.Scoped({service}, {impl}));");
                 }
             }
         }
