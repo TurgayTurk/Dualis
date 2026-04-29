@@ -52,7 +52,7 @@
   </ItemGroup>
   <!-- Consumer smoke tests: pin Dualis package version -->
   <ItemGroup>
-    <PackageVersion Include="Dualis" Version="0.2.4" />
+    <PackageVersion Include="Dualis" Version="0.3.0" />
   </ItemGroup>
   <!-- Ensure .NET reference pack is present in global packages cache without referencing it directly -->
   <ItemGroup>
