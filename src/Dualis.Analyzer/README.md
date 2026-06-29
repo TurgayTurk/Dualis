@@ -4,6 +4,13 @@
 
 Roslyn analyzers for Dualis to improve developer experience and correctness. These analyzers run at compile time and do not affect runtime.
 
+## What's new (0.4.0)
+
+- Fixed: DULIS014 no longer false-positives on open-generic, independently-constrained "catch-all" exception handlers (e.g. `where TRequest : IQuery<Result<int>>, TResponse : Result<int>, TException : ServerException`) â€” the common pattern for porting MediatR.Pipeline exception handlers. It also now correctly catches genuine mismatches in generic handlers that it previously missed.
+- Changed: DULIS014/DULIS015 type lookups follow the `Dualis.CQRS` â†’ `Dualis.Pipeline` move of `IRequestExceptionHandler`/`IRequestExceptionAction` in the `Dualis` package.
+
+See full details in [CHANGELOG.md](https://github.com/TurgayTurk/Dualis/blob/main/src/Dualis.Analyzer/CHANGELOG.md).
+
 ## What's new (Unreleased)
 
 Added rules:
@@ -14,7 +21,7 @@ Added rules:
 - DULIS007 (Info): CancellationToken available in scope but not passed to Send/Publish.
 - DULIS014 (Warning): Exception contract request type does not implement the required IRequest shape.
 - DULIS015 (Warning): Multiple IRequestExceptionHandler implementations found for the same exception contract.
-- DULIS013 (Info): Avoid service locator – resolve ISender/IPublisher/IDualizor via constructor injection.
+- DULIS013 (Info): Avoid service locator ï¿½ resolve ISender/IPublisher/IDualizor via constructor injection.
 
 ## What's new (0.1.0)
 
@@ -27,7 +34,7 @@ See full details in [CHANGELOG.md](https://github.com/TurgayTurk/Dualis/blob/mai
 
 ## Install
 - NuGet: dotnet add package Dualis.Analyzers
-- Scope: add to your solution or only to the host project. Mark as `PrivateAssets=all` if you don’t want it to flow transitively.
+- Scope: add to your solution or only to the host project. Mark as `PrivateAssets=all` if you donï¿½t want it to flow transitively.
 
 ## Rules
 - DULIS001 (Info): Dualis generator not enabled in host
@@ -47,7 +54,7 @@ See full details in [CHANGELOG.md](https://github.com/TurgayTurk/Dualis/blob/mai
 - DULIS013 (Info): Service locator usage for Dualis services
   - Suggests preferring constructor injection over IServiceProvider.GetRequiredService for Dualis abstractions.
 - DULIS014 (Warning): Exception contract request type not implementing required IRequest shape
-  - Validates IRequestExceptionHandler<TRequest, TResponse, TException> requires TRequest : IRequest<TResponse>, and IRequestExceptionAction<TRequest, TException> requires TRequest : IRequest.
+  - Validates that IRequestExceptionHandler<TRequest, TResponse, TException>'s TRequest implements IRequest<TResponse>, and that IRequestExceptionAction<TRequest, TException>'s TRequest implements IRequest. These are no longer compiler-enforced constraints on the interfaces themselves (to allow open-generic catch-all handlers), so this analyzer is the primary guard. Open-generic handlers with independently-constrained TRequest/TResponse (e.g. `where TRequest : IQuery<Result<int>>, TResponse : Result<int>`) are recognized correctly and do not trigger this warning.
 - DULIS015 (Warning): Multiple IRequestExceptionHandler implementations found for same exception contract
   - Detects duplicate IRequestExceptionHandler<TRequest, TResponse, TException> contracts which can create ambiguous handling order.
 

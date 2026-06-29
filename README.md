@@ -10,6 +10,12 @@ Fast, lightweight mediator for .NET with unified requests, pipelines, and notifi
 - Notifications: fan-out publish with failure strategies and alternative publishers
 - Public `AddDualis` entry point for DI; source generator augments it in the host project
 
+## What's new (0.4.0)
+
+- Breaking: `IRequestExceptionHandler<,,>`/`IRequestExceptionAction<,>` moved to `Dualis.Pipeline`; `RequestExceptionState<T>` renamed to `RequestExceptionHandlerState<T>`, matching `MediatR.Pipeline` exactly. See [Migrating from MediatR.Pipeline](#migrating-from-mediatrpipeline) below.
+- Breaking: removed the `where TRequest : IRequest<TResponse>`/`IRequest` constraints from those interfaces, unblocking open-generic catch-all exception handlers.
+- Fixed: `Dualis.Analyzer` DULIS014 no longer false-positives on such handlers. See [src/Dualis.Analyzer/README.md](https://github.com/TurgayTurk/Dualis/blob/main/src/Dualis.Analyzer/README.md).
+
 ## What's new (0.2.5)
 
 - Added: `Dualis.Analyzer` project. See installation and rule details in the analyzer README: [src/Dualis.Analyzer/README.md](https://github.com/TurgayTurk/Dualis/blob/main/src/Dualis.Analyzer/README.md).

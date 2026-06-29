@@ -1,9 +1,5 @@
 ﻿### New Rules
-DULIS003: Multiple IRequestHandler implementations found for the same request
-DULIS004: Send called with a type that does not implement IRequest/IRequest<T>
-DULIS005: Handler request type does not implement the required IRequest shape
-DULIS006: No INotificationHandler found for notification type
-DULIS007: CancellationToken available in scope but not passed to Send/Publish
-DULIS013: Avoid service locator for Dualis services – prefer DI
-DULIS014: Exception contract request type does not implement the required IRequest shape
-DULIS015: Multiple IRequestExceptionHandler implementations found for the same exception contract
+None.
+
+### Notes
+DULIS014's underlying check was fixed in 0.4.0 (no new rule ID; see CHANGELOG.md / README.md).

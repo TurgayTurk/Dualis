@@ -2,6 +2,17 @@
 
 All notable changes to this package will be documented in this file.
 
+## [0.4.0] - 2026-06-29
+### Changed
+- DULIS014 (`MismatchedExceptionContractRequestAnalyzer`) now correctly recognizes the IRequest/IRequest&lt;T&gt; shape reachable from a type parameter's own constraints. Previously `ITypeParameterSymbol.AllInterfaces` was relied on directly, which Roslyn reports as empty even when the type parameter has an interface constraint, causing the rule to (a) miss real mismatches for generic handlers and (b) false-positive on legitimate open-generic, independently-constrained "catch-all" handlers (the common MediatR pattern of `where TRequest : IQuery<Result<int>>, TResponse : Result<int>`).
+- DULIS014/DULIS015 type lookups updated from `Dualis.CQRS.IRequestExceptionHandler`3`/`IRequestExceptionAction`2` to `Dualis.Pipeline.IRequestExceptionHandler`3`/`IRequestExceptionAction`2`, following the corresponding move in the `Dualis` package.
+
+### Added
+- Regression tests for DULIS014 covering open-generic exception handlers with independently-constrained `TRequest`/`TResponse` (no false positive) and a genuinely mismatched generic handler (still flagged).
+
+### Notes
+- Version alignment: `Dualis.Analyzers` and `Dualis` are synchronized at `0.4.0`.
+
 ## [0.3.0] - 2025-10-05
 ### Added
 - DULIS003: Warning when multiple IRequestHandler implementations exist for the same request.

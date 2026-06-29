@@ -4,7 +4,7 @@
 DULIS001: Dualis source generator is not enabled in the host project
 DULIS002: No IRequestHandler found for request type
 
-## Release Unshipped
+## Release 0.3.0
 
 ### New Rules
 DULIS003: Multiple IRequestHandler implementations found for the same request
@@ -14,4 +14,4 @@ DULIS006: No INotificationHandler found for notification type
 DULIS007: CancellationToken available in scope but not passed to Send/Publish
 DULIS014: Exception contract request type does not implement the required IRequest shape
 DULIS015: Multiple IRequestExceptionHandler implementations found for the same exception contract
-DULIS013: Avoid service locator for Dualis services – prefer DI
+DULIS013: Avoid service locator for Dualis services ï¿½ prefer DI
