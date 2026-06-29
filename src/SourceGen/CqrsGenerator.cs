@@ -410,7 +410,7 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
 
             IEnumerable<INamedTypeSymbol> ifaceMatches = handlerSymbol.AllInterfaces
                 .Where(i => i.Name == "IRequestExceptionHandler"
-                            && i.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Dualis.CQRS"
+                            && i.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Dualis.Pipeline"
                             && i.TypeArguments.Length == 3);
 
             foreach (INamedTypeSymbol iface in ifaceMatches)
@@ -459,7 +459,7 @@ public sealed class ServiceCollectionExtensionGenerator : IIncrementalGenerator
 
             IEnumerable<INamedTypeSymbol> ifaceMatches = actionSymbol.AllInterfaces
                 .Where(i => i.Name == "IRequestExceptionAction"
-                            && i.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Dualis.CQRS"
+                            && i.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Dualis.Pipeline"
                             && i.TypeArguments.Length == 2);
 
             foreach (INamedTypeSymbol iface in ifaceMatches)

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.ExceptionServices;
 using Dualis.CQRS;
 using Dualis.Notifications;
+using Dualis.Pipeline;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Dualis;
@@ -111,7 +112,7 @@ internal sealed class FallbackDualizor(
     {
         Type requestType = request.GetType();
         Type responseType = typeof(TResponse);
-        RequestExceptionState<TResponse> state = new();
+        RequestExceptionHandlerState<TResponse> state = new();
 
         foreach (Type exceptionType in EnumerateExceptionTypes(exception.GetType()))
         {

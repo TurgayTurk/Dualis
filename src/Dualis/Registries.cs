@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using Dualis.CQRS;
+using Dualis.Pipeline;
 
 namespace Dualis;
 

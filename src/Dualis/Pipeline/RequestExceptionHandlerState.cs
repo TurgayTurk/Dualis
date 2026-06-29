@@ -1,11 +1,11 @@
-namespace Dualis.CQRS;
+namespace Dualis.Pipeline;
 
 /// <summary>
 /// Mutable state passed to request exception handlers.
 /// Allows a handler to mark an exception as handled and provide a fallback response.
 /// </summary>
 /// <typeparam name="TResponse">The request response type.</typeparam>
-public sealed class RequestExceptionState<TResponse>
+public sealed class RequestExceptionHandlerState<TResponse>
 {
     /// <summary>
     /// Gets a value indicating whether the exception was handled.

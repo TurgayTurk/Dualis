@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using Dualis.Analyzer.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -24,8 +26,8 @@ public sealed class MismatchedExceptionContractRequestAnalyzer : DiagnosticAnaly
         context.RegisterCompilationStartAction(static compilationContext =>
         {
             Compilation compilation = compilationContext.Compilation;
-            INamedTypeSymbol? exceptionHandler = compilation.GetTypeByMetadataName("Dualis.CQRS.IRequestExceptionHandler`3");
-            INamedTypeSymbol? exceptionAction = compilation.GetTypeByMetadataName("Dualis.CQRS.IRequestExceptionAction`2");
+            INamedTypeSymbol? exceptionHandler = compilation.GetTypeByMetadataName("Dualis.Pipeline.IRequestExceptionHandler`3");
+            INamedTypeSymbol? exceptionAction = compilation.GetTypeByMetadataName("Dualis.Pipeline.IRequestExceptionAction`2");
             INamedTypeSymbol? irequestT = compilation.GetTypeByMetadataName("Dualis.CQRS.IRequest`1");
             INamedTypeSymbol? irequest = compilation.GetTypeByMetadataName("Dualis.CQRS.IRequest");
             if (irequestT is null || irequest is null || exceptionHandler is null && exceptionAction is null)
@@ -56,13 +58,26 @@ public sealed class MismatchedExceptionContractRequestAnalyzer : DiagnosticAnaly
                         ITypeSymbol req = iface.TypeArguments[0];
                         ITypeSymbol res = iface.TypeArguments[1];
                         bool ok = false;
-                        ImmutableArray<INamedTypeSymbol> reqIfaces = req.AllInterfaces;
-                        for (int r = 0; r < reqIfaces.Length; r++)
+                        foreach (INamedTypeSymbol ri in GetEffectiveInterfaces(req))
                         {
-                            INamedTypeSymbol ri = reqIfaces[r];
-                            if (ri.OriginalDefinition.Equals(irequestT, SymbolEqualityComparer.Default)
-                                && ri.TypeArguments.Length == 1
-                                && SymbolEqualityComparer.Default.Equals(ri.TypeArguments[0], res))
+                            if (!ri.OriginalDefinition.Equals(irequestT, SymbolEqualityComparer.Default)
+                                || ri.TypeArguments.Length != 1)
+                            {
+                                continue;
+                            }
+
+                            ITypeSymbol riArg = ri.TypeArguments[0];
+                            if (SymbolEqualityComparer.Default.Equals(riArg, res))
+                            {
+                                ok = true;
+                                break;
+                            }
+
+                            // TResponse may be an independently-constrained type parameter (e.g. `where TResponse : Result<int>`)
+                            // rather than being literally `TResponse` in `TRequest : IRequest<TResponse>`. Accept when TRequest's
+                            // IRequest<T> argument matches one of TResponse's own constraint types.
+                            if (res is ITypeParameterSymbol resTp
+                                && resTp.ConstraintTypes.Any(constraint => SymbolEqualityComparer.Default.Equals(riArg, constraint)))
                             {
                                 ok = true;
                                 break;
@@ -82,17 +97,8 @@ public sealed class MismatchedExceptionContractRequestAnalyzer : DiagnosticAnaly
                              && iface.TypeArguments.Length == 2)
                     {
                         ITypeSymbol req = iface.TypeArguments[0];
-                        bool ok = false;
-                        ImmutableArray<INamedTypeSymbol> reqIfaces = req.AllInterfaces;
-                        for (int r = 0; r < reqIfaces.Length; r++)
-                        {
-                            INamedTypeSymbol ri = reqIfaces[r];
-                            if (ri.Equals(irequest, SymbolEqualityComparer.Default) || ri.OriginalDefinition.Equals(irequestT, SymbolEqualityComparer.Default))
-                            {
-                                ok = true;
-                                break;
-                            }
-                        }
+                        bool ok = GetEffectiveInterfaces(req).Any(ri =>
+                            ri.Equals(irequest, SymbolEqualityComparer.Default) || ri.OriginalDefinition.Equals(irequestT, SymbolEqualityComparer.Default));
 
                         if (!ok)
                         {
@@ -104,5 +110,24 @@ public sealed class MismatchedExceptionContractRequestAnalyzer : DiagnosticAnaly
                 }
             }, SymbolKind.NamedType);
         });
+    }
+
+    /// <summary>
+    /// Returns the interfaces reachable from <paramref name="type"/>. For ordinary types this is
+    /// <see cref="ITypeSymbol.AllInterfaces"/>. Type parameters report an empty <c>AllInterfaces</c>
+    /// even when constrained by an interface (e.g. <c>where TRequest : IQuery&lt;Result&lt;int&gt;&gt;</c>),
+    /// so for those we flatten through <see cref="ITypeParameterSymbol.ConstraintTypes"/> instead.
+    /// </summary>
+    private static IEnumerable<INamedTypeSymbol> GetEffectiveInterfaces(ITypeSymbol type)
+    {
+        if (type is not ITypeParameterSymbol typeParameter)
+        {
+            return type.AllInterfaces;
+        }
+
+        return typeParameter.ConstraintTypes
+            .SelectMany(constraint => constraint is INamedTypeSymbol { TypeKind: TypeKind.Interface } namedConstraint
+                ? namedConstraint.AllInterfaces.Append(namedConstraint)
+                : constraint.AllInterfaces);
     }
 }

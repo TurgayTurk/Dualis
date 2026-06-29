@@ -1,4 +1,5 @@
 using Dualis.CQRS;
+using Dualis.Pipeline;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -17,7 +18,7 @@ public sealed class RequestExceptionHandlingTests
 
     public sealed class CrashExceptionHandler : IRequestExceptionHandler<CrashRequest, string, InvalidOperationException>
     {
-        public Task Handle(CrashRequest request, InvalidOperationException exception, RequestExceptionState<string> state, CancellationToken cancellationToken)
+        public Task Handle(CrashRequest request, InvalidOperationException exception, RequestExceptionHandlerState<string> state, CancellationToken cancellationToken)
         {
             state.SetHandled("handled");
             return Task.CompletedTask;
@@ -45,7 +46,7 @@ public sealed class RequestExceptionHandlingTests
 
     public sealed class BaseExceptionHandler : IRequestExceptionHandler<CrashRequest, string, Exception>
     {
-        public Task Handle(CrashRequest request, Exception exception, RequestExceptionState<string> state, CancellationToken cancellationToken)
+        public Task Handle(CrashRequest request, Exception exception, RequestExceptionHandlerState<string> state, CancellationToken cancellationToken)
         {
             state.SetHandled("base");
             return Task.CompletedTask;
@@ -54,7 +55,7 @@ public sealed class RequestExceptionHandlingTests
 
     public sealed class SpecificExceptionHandler : IRequestExceptionHandler<CrashRequest, string, InvalidOperationException>
     {
-        public Task Handle(CrashRequest request, InvalidOperationException exception, RequestExceptionState<string> state, CancellationToken cancellationToken)
+        public Task Handle(CrashRequest request, InvalidOperationException exception, RequestExceptionHandlerState<string> state, CancellationToken cancellationToken)
         {
             state.SetHandled("specific");
             return Task.CompletedTask;

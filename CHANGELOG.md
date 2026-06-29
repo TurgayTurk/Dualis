@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-06-29
+
+Breaking
+- Moved `IRequestExceptionHandler<TRequest, TResponse, TException>` and `IRequestExceptionAction<TRequest, TException>` from `Dualis.CQRS` to `Dualis.Pipeline`, mirroring `IPipelineBehavior`'s location and `MediatR.Pipeline`'s layout.
+- Renamed `RequestExceptionState<TResponse>` to `RequestExceptionHandlerState<TResponse>` (also moved to `Dualis.Pipeline`) to match MediatR's exact type name. Members (`Handled`, `Response`, `SetHandled`) are unchanged.
+- Removed the `where TRequest : IRequest<TResponse>` constraint from `IRequestExceptionHandler<,,>` and the `where TRequest : IRequest` constraint from `IRequestExceptionAction<,>`. Neither constraint exists in MediatR, and they prevented open-generic, independently-constrained "catch-all" exception handlers (e.g. `where TRequest : IQuery<Result<int>>, TResponse : Result<int>, TException : ServerException`) from compiling.
+
+Migration
+- Porting from MediatR: replace `using MediatR.Pipeline;` with `using Dualis.Pipeline;`. No other code changes are required, including for open-generic/constrained catch-all exception handlers.
+- Existing Dualis consumers: replace `using Dualis.CQRS;` with `using Dualis.Pipeline;` wherever `IRequestExceptionHandler`, `IRequestExceptionAction`, or the renamed state type are referenced, and rename `RequestExceptionState<T>` to `RequestExceptionHandlerState<T>`.
+
+Fixed
+- DULIS014 (`MismatchedExceptionContractRequestAnalyzer`) no longer reports a false positive for open-generic exception handlers whose `TRequest` and `TResponse` are independently constrained to the same concrete type (the common MediatR catch-all-handler idiom).
+
+Added
+- Sample demonstrating the open-generic catch-all exception handler pattern (`samples/DDD.Application/Common`).
+
 ## [0.3.0] - 2025-10-05
 
 Added

@@ -176,7 +176,7 @@ public sealed class DualisGenerator : IIncrementalGenerator
             w.OpenBlock();
             w.WriteLine("Type requestType = typeof(TRequest);");
             w.WriteLine("Type responseType = typeof(TResponse);");
-            w.WriteLine("RequestExceptionState<TResponse> state = new();");
+            w.WriteLine("RequestExceptionHandlerState<TResponse> state = new();");
             w.WriteLine("foreach (Type exceptionType in EnumerateExceptionTypes(exception.GetType()))");
             w.OpenBlock();
             w.WriteLine("Type handlerService = typeof(IRequestExceptionHandler<,,>).MakeGenericType(requestType, responseType, exceptionType);");

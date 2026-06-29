@@ -129,11 +129,11 @@ internal static class SharedHandlerDiscovery
             {
                 requestHandlers.Add(type);
             }
-            else if (iface.Name == "IRequestExceptionHandler" && ns == "global::Dualis.CQRS" && iface.TypeArguments.Length == 3)
+            else if (iface.Name == "IRequestExceptionHandler" && ns == "global::Dualis.Pipeline" && iface.TypeArguments.Length == 3)
             {
                 requestExceptionHandlers.Add(type);
             }
-            else if (iface.Name == "IRequestExceptionAction" && ns == "global::Dualis.CQRS" && iface.TypeArguments.Length == 2)
+            else if (iface.Name == "IRequestExceptionAction" && ns == "global::Dualis.Pipeline" && iface.TypeArguments.Length == 2)
             {
                 requestExceptionActions.Add(type);
             }

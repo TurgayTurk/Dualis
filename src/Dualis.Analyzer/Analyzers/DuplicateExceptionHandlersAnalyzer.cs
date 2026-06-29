@@ -26,7 +26,7 @@ public sealed class DuplicateExceptionHandlersAnalyzer : DiagnosticAnalyzer
         context.RegisterCompilationStartAction(static compilationContext =>
         {
             Compilation compilation = compilationContext.Compilation;
-            INamedTypeSymbol? exceptionHandler = compilation.GetTypeByMetadataName("Dualis.CQRS.IRequestExceptionHandler`3");
+            INamedTypeSymbol? exceptionHandler = compilation.GetTypeByMetadataName("Dualis.Pipeline.IRequestExceptionHandler`3");
             if (exceptionHandler is null)
             {
                 return;

@@ -17,6 +17,7 @@ public sealed class DuplicateExceptionHandlersAnalyzerTests
     {
         string code = """
         using Dualis.CQRS;
+        using Dualis.Pipeline;
         using System;
         using System.Threading;
         using System.Threading.Tasks;
@@ -25,13 +26,13 @@ public sealed class DuplicateExceptionHandlersAnalyzerTests
 
         sealed class EH1 : IRequestExceptionHandler<A, int, InvalidOperationException>
         {
-            public Task Handle(A request, InvalidOperationException exception, RequestExceptionState<int> state, CancellationToken cancellationToken)
+            public Task Handle(A request, InvalidOperationException exception, RequestExceptionHandlerState<int> state, CancellationToken cancellationToken)
                 => Task.CompletedTask;
         }
 
         sealed class EH2 : IRequestExceptionHandler<A, int, InvalidOperationException>
         {
-            public Task Handle(A request, InvalidOperationException exception, RequestExceptionState<int> state, CancellationToken cancellationToken)
+            public Task Handle(A request, InvalidOperationException exception, RequestExceptionHandlerState<int> state, CancellationToken cancellationToken)
                 => Task.CompletedTask;
         }
         """;
