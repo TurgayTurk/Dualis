@@ -1,0 +1,42 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/.github/">
+    <File Path=".github/copilot-instructions.md" />
+  </Folder>
+  <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/ci.yml" />
+  </Folder>
+  <Folder Name="/play-ground/">
+    <Project Path="samples/DDD.Application/DDD.Application.csproj" />
+    <Project Path="samples/DDD.Domain/DDD.Domain.csproj" />
+    <Project Path="samples/DDD.Infrastructure/DDD.Infrastructure.csproj" />
+    <Project Path="samples/DDD.Presentation/DDD.Presentation.csproj" />
+    <Project Path="src/Presentation/Presentation.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="build.yml" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="logo.png" />
+  </Folder>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Analayzer/">
+    <Project Path="src/Dualis.Analyzer/Dualis.Analyzer.csproj" />
+  </Folder>
+  <Folder Name="/src/Core/">
+    <Project Path="src/Dualis/Dualis.csproj" />
+    <Project Path="src/SourceGen/SourceGen.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Dualis.Analyzers.Tests/Dualis.Analyzers.Tests.csproj" />
+    <Project Path="tests/Dualis.Benchmarks/Dualis.Benchmarks.csproj" />
+    <Project Path="tests/Dualis.PackageSmokeTests/Dualis.PackageSmokeTests.csproj" />
+    <Project Path="tests/Dualis.UnitTests/Dualis.UnitTests.csproj" />
+    <Project Path="tests/SourceGen.Tests/SourceGen.Tests.csproj" />
+  </Folder>
+</Solution>
