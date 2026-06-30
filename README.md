@@ -10,6 +10,10 @@ Fast, lightweight mediator for .NET with unified requests, pipelines, and notifi
 - Notifications: fan-out publish with failure strategies and alternative publishers
 - Public `AddDualis` entry point for DI; source generator augments it in the host project
 
+## What's new (0.4.0.2)
+
+- Fixed: cross-assembly handler/behavior discovery now honors `InternalsVisibleTo`, not just public visibility. If you declare `internal` `IRequestHandler`/`INotificationHandler`/`IPipelineBehavior` types in a referenced project and grant the host access via `[assembly: InternalsVisibleTo("YourHost")]`, they are now correctly discovered. Previously they were silently skipped, producing a partially-generated dispatcher and a runtime `InvalidOperationException: Unknown request type: ...` for any internal handler — even though generation otherwise appeared to succeed. See [CHANGELOG.md](https://github.com/TurgayTurk/Dualis/blob/main/CHANGELOG.md).
+
 ## What's new (0.4.0.1)
 
 - Fixed: the 0.4.0 package shipped without the source generator (missing `analyzers/dotnet/cs` assets) due to an MSBuild evaluation-order bug in packaging — no code was generated for **any** consumer of 0.4.0. See [CHANGELOG.md](https://github.com/TurgayTurk/Dualis/blob/main/CHANGELOG.md).
@@ -302,6 +306,9 @@ The generator runs when any of these is true in the host project:
 - `opts.Pipelines.Register<T>()` (or `CQRS`/`Notifications`) behaviors don't seem to run:
   - On Dualis < 0.4.0.1, this could happen if the generator wasn't active in the host (see above) — the fallback path silently skipped manual registries. Upgrade to 0.4.0.1+.
   - Confirm generation actually ran: set `EmitCompilerGeneratedFiles` and check for `Dualizor.g.cs`/`ServiceCollectionExtensions.g.cs` under `obj/generated`.
+- Runtime `InvalidOperationException: Unknown request type: ...` even though generation appears to have run (files exist under `obj/generated`):
+  - On Dualis < 0.4.0.2, `internal` handler/behavior types in a referenced project were silently excluded from cross-assembly discovery even with `InternalsVisibleTo` configured correctly — generation succeeded but produced a dispatcher missing those request types specifically. Upgrade to 0.4.0.2+.
+  - Otherwise, double-check the failing request's handler is either `public`, or `internal` with a matching `[assembly: InternalsVisibleTo("HostAssemblyName")]` in the project that declares it — the name must match the host's actual assembly name (`AssemblyName` MSBuild property), not just the project/folder name.
 
 ## Benchmarks
 

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0.2] - 2026-06-30
+
+Fixed
+- **Cross-assembly handler/behavior discovery ignored `InternalsVisibleTo`**: the source generator's cross-assembly scan (`SharedHandlerDiscovery.IsEffectivelyPublic`) only accepted types with `DeclaredAccessibility == Public`, even though the README documents `internal` handlers exposed via `InternalsVisibleTo` as supported. Layered apps that declare CQRS handlers `internal` in an Application project (a common, deliberate encapsulation choice) got a *partially* generated dispatcher: generation appeared to succeed (files were emitted), but most request types had no `case` in the generated switch, causing `InvalidOperationException: Unknown request type: ...` at runtime for any internal handler. Fixed by using Roslyn's own `Compilation.IsSymbolAccessibleWithin`, which correctly honors `InternalsVisibleTo`, instead of a hand-rolled accessibility check.
+
+Added
+- Regression test (`InternalsVisibleToDiscoveryTests.InternalHandlerVisibleViaInternalsVisibleToIsDiscoveredAcrossAssemblies`) compiling a library assembly with an `internal` handler plus `[assembly: InternalsVisibleTo]`, and asserting the host's generated dispatcher includes it.
+
 ## [0.4.0.1] - 2026-06-30
 
 Fixed

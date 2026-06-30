@@ -72,8 +72,10 @@ internal static class SharedHandlerDiscovery
                     }
 
                     // Only include symbols that are safely accessible from this compilation.
-                    // Keep it strict to avoid accessibility errors in generated code: require effective public visibility.
-                    if (!IsEffectivelyPublic(type))
+                    // Uses Roslyn's own accessibility check, which correctly honors InternalsVisibleTo
+                    // (a hand-rolled "DeclaredAccessibility == Public" check would silently skip
+                    // internal handler/behavior types even when the host has IVT access to them).
+                    if (!compilation.IsSymbolAccessibleWithin(type, compilation.Assembly))
                     {
                         continue;
                     }
@@ -185,27 +187,5 @@ internal static class SharedHandlerDiscovery
                 }
             }
         }
-    }
-
-    private static bool IsEffectivelyPublic(INamedTypeSymbol type)
-    {
-        // Public type and all containing types public.
-        if (type.DeclaredAccessibility != Accessibility.Public)
-        {
-            return false;
-        }
-
-        INamedTypeSymbol? cur = type.ContainingType;
-        while (cur is not null)
-        {
-            if (cur.DeclaredAccessibility != Accessibility.Public)
-            {
-                return false;
-            }
-
-            cur = cur.ContainingType;
-        }
-
-        return true;
     }
 }
