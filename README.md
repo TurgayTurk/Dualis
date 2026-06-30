@@ -10,6 +10,12 @@ Fast, lightweight mediator for .NET with unified requests, pipelines, and notifi
 - Notifications: fan-out publish with failure strategies and alternative publishers
 - Public `AddDualis` entry point for DI; source generator augments it in the host project
 
+## What's new (0.4.0.1)
+
+- Fixed: the 0.4.0 package shipped without the source generator (missing `analyzers/dotnet/cs` assets) due to an MSBuild evaluation-order bug in packaging — no code was generated for **any** consumer of 0.4.0. See [CHANGELOG.md](https://github.com/TurgayTurk/Dualis/blob/main/CHANGELOG.md).
+- Fixed: `AddDualis()`'s fallback path (used when the generator hasn't run) silently ignored `DualizorOptions.Pipelines`/`CQRS`/`Notifications` manual registrations and skipped auto-discovery. It now correctly falls back to the existing `AddDualisRuntime` reflection path. If you previously found that `opts.Pipelines.Register<T>()` "didn't work," upgrade to 0.4.0.1 — that was this bug, not the API.
+- If you're on 0.4.0 and your host project has only a `ProjectReference` to the project that declares your `PackageReference Include="Dualis"` (a common DDD/Clean Architecture split), add a **direct** `PackageReference Include="Dualis"` to the host project too — see [Multi-project (DDD/Clean Architecture) setup](#multi-project-dddclean-architecture-setup).
+
 ## What's new (0.4.0)
 
 - Breaking: `IRequestExceptionHandler<,,>`/`IRequestExceptionAction<,>` moved to `Dualis.Pipeline`; `RequestExceptionState<T>` renamed to `RequestExceptionHandlerState<T>`, matching `MediatR.Pipeline` exactly. See [Migrating from MediatR.Pipeline](#migrating-from-mediatrpipeline) below.
@@ -178,6 +184,7 @@ services.AddDualisRuntime(opts =>
 Requirements:
 - Handler and behavior types in referenced assemblies must be `public` (or visible via `InternalsVisibleTo` to the host).
 - Other projects should NOT enable the generator.
+- **The host project must have a *direct* `PackageReference Include="Dualis"`**, even if it also has a `ProjectReference` to an Application/Domain layer that already references Dualis. NuGet analyzers (the source generator) do not flow across `ProjectReference` edges — only the compiled types do. A host with only `ProjectReference Application.csproj -> Dualis` will compile fine and call `AddDualis()` without errors, but the generator never actually runs in the host's own compilation, so nothing gets generated there. This is the most common cause of "the generator works in my sample but not in my layered app."
 
 ## Request exception handling
 
@@ -291,6 +298,10 @@ The generator runs when any of these is true in the host project:
 - Not all handlers are auto-registered:
   - Ensure handler/behavior classes are `public` or exposed via `InternalsVisibleTo` to the host.
   - Ensure the host references the assemblies containing the handlers.
+  - Ensure the host project itself has a *direct* `PackageReference Include="Dualis"` — a transitive `ProjectReference` to a project that references Dualis is not enough for the analyzer to load in the host's compilation (see [Multi-project setup](#multi-project-dddclean-architecture-setup)).
+- `opts.Pipelines.Register<T>()` (or `CQRS`/`Notifications`) behaviors don't seem to run:
+  - On Dualis < 0.4.0.1, this could happen if the generator wasn't active in the host (see above) — the fallback path silently skipped manual registries. Upgrade to 0.4.0.1+.
+  - Confirm generation actually ran: set `EmitCompilerGeneratedFiles` and check for `Dualizor.g.cs`/`ServiceCollectionExtensions.g.cs` under `obj/generated`.
 
 ## Benchmarks
 

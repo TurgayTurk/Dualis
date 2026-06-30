@@ -1,4 +1,5 @@
 using Dualis.CQRS;
+using Dualis.Pipeline;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -18,6 +19,16 @@ public sealed class PingHandler : IRequestHandler<Ping, string>
 {
     /// <inheritdoc />
     public Task<string> Handle(Ping request, CancellationToken cancellationToken) => Task.FromResult(request.Msg);
+}
+
+/// <summary>
+/// Pipeline behavior used to verify <see cref="PipelineRegistry.Register{TBehavior}"/> is actually
+/// applied to the dispatch path when AddDualis falls back to the reflection runtime.
+/// </summary>
+public sealed class PingUppercaseBehavior : IPipelineBehavior<Ping, string>
+{
+    public async Task<string> Handle(Ping request, RequestHandlerDelegate<string> next, CancellationToken cancellationToken)
+        => (await next(cancellationToken)).ToUpperInvariant();
 }
 
 /// <summary>
@@ -49,6 +60,32 @@ public sealed class AddDualisReflectionFallbackTests
 
         string res = await sender.Send(new Ping("ok"));
         res.Should().Be("ok");
+    }
+
+    /// <summary>
+    /// Reproduces the scenario reported against Dualis 0.3.0/0.4.0: a behavior registered via
+    /// <c>DualizorOptions.Pipelines.Register&lt;T&gt;()</c> must actually run during dispatch, even when
+    /// AddDualis falls back to the reflection runtime because no generated dispatcher is present.
+    /// </summary>
+    [Fact]
+    public async Task AddDualis_WithoutGenerator_PipelinesRegister_BehaviorRunsDuringDispatch()
+    {
+        // Arrange
+        ServiceCollection services = new();
+        services.AddDualis(opts =>
+        {
+            opts.RegisterDiscoveredBehaviors = false;
+            opts.CQRS.Register<PingHandler>();
+            opts.Pipelines.Register<PingUppercaseBehavior>();
+        });
+
+        // Act
+        ServiceProvider sp = services.BuildServiceProvider();
+        ISender sender = sp.GetRequiredService<ISender>();
+        string res = await sender.Send(new Ping("ok"));
+
+        // Assert
+        res.Should().Be("OK");
     }
 
     /// <summary>

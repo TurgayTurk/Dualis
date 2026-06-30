@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0.1] - 2026-06-30
+
+Fixed
+- **Packaging regression**: the `Dualis` 0.4.0 NuGet package shipped without the source generator at all (`analyzers/dotnet/cs/Dualis.SourceGen.dll` was missing from the package). The analyzer asset items in `Dualis.csproj` were declared in a static `ItemGroup`, which MSBuild evaluates before any `Target` runs; on a clean pack the generator DLL didn't exist yet at evaluation time, so the `Exists()` condition silently dropped the item, even though a `BeforeTargets="Pack"` step built the DLL moments later. As a result, **no code was generated for any consumer of 0.4.0**, regardless of project type (Web, WASM, Desktop, etc.) — this was never a WASM-specific limitation. Fixed by moving the item declarations into the build-and-stage `Target` itself so they're added after the generator DLL exists.
+- **`AddDualis()` fallback silently dropped manual registrations**: when the source generator hadn't produced output in the host assembly (e.g. due to the packaging regression above, or simply because generation wasn't enabled), the public `AddDualis()` fell back to a minimal internal stub that registered only core infrastructure — it never applied `DualizorOptions.Pipelines`, `CQRS`, or `Notifications` manual registries, and performed no auto-discovery at all. This made `opts.Pipelines.Register<TBehavior>()` (and the CQRS/Notifications equivalents) appear broken, when in fact the registries themselves were fine — they were just never reaching the DI container. Fixed by routing the fallback through the existing, fully-functional `AddDualisRuntime` reflection-based path instead, which already applies all manual registries and performs auto-discovery. The now-redundant minimal stub was removed.
+
+Added
+- Regression test (`AddDualisReflectionFallbackTests.AddDualis_WithoutGenerator_PipelinesRegister_BehaviorRunsDuringDispatch`) verifying a behavior registered via `DualizorOptions.Pipelines.Register<T>()` actually executes during dispatch when the generator is not active.
+
 ## [0.4.0] - 2026-06-29
 
 Breaking

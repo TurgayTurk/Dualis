@@ -35,8 +35,10 @@ public static class ServiceCollectionExtensions
             return result;
         }
 
-        // No generated registration found in host assemblies; use runtime registration.
-        return DependencyInjection.ServiceCollectionExtensions.AddDualizor(services, configure);
+        // No generated registration found in host assemblies; fall back to the full
+        // reflection-based runtime path so manual DualizorOptions.Pipelines/CQRS/Notifications
+        // registrations and auto-discovery still work even without the source generator active.
+        return RuntimeServiceCollectionExtensions.AddDualisRuntime(services, configure);
     }
 
     [SuppressMessage("Security", "S3011", Justification = "Intentional access to internal generated AddDualis method in the host assembly.")]

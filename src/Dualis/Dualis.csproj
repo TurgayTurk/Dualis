@@ -9,7 +9,7 @@
 
     <!-- NuGet package metadata -->
     <PackageId>Dualis</PackageId>
-    <Version>0.4.0</Version>
+    <Version>0.4.0.1.1</Version>
     <Authors>Turgay Turk</Authors>
     <Company></Company>
     <Description>Mediator-like CQRS + pipeline behaviors + notifications with source generator for minimal overhead.</Description>
@@ -48,18 +48,17 @@
     <ProjectReference Include="..\SourceGen\SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(IsPack)' != 'true'" />
   </ItemGroup>
 
-  <!-- Explicit analyzer assets to guarantee packaging layout under analyzers/dotnet/cs -->
-  <ItemGroup>
-    <None Include="..\SourceGen\bin\$(Configuration)\netstandard2.0\Dualis.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Condition="Exists('..\\SourceGen\\bin\\$(Configuration)\\netstandard2.0\\Dualis.SourceGen.dll')" Visible="false" />
-    <None Include="..\SourceGen\bin\$(Configuration)\netstandard2.0\Dualis.SourceGen.xml" Pack="true" PackagePath="analyzers/dotnet/cs" Condition="Exists('..\\SourceGen\\bin\\$(Configuration)\\netstandard2.0\\Dualis.SourceGen.xml')" Visible="false" />
-  </ItemGroup>
-
-  <!-- Build the generator before packing this package so the DLL exists -->
-  <Target Name="BuildSourceGenBeforePack" BeforeTargets="Pack" Condition="'$(NoBuild)' != 'true'">
-    <MSBuild Projects="..\SourceGen\SourceGen.csproj"
-             Targets="Build"
-             Properties="Configuration=$(Configuration)"
-             Condition="!Exists('..\\SourceGen\\bin\\$(Configuration)\\netstandard2.0\\Dualis.SourceGen.dll')" />
+  <!-- Build the generator and stage its output as packed analyzer assets under analyzers/dotnet/cs.
+       This must run as a Target (not a static ItemGroup) because MSBuild evaluates top-level
+       ItemGroups before any Target executes: a static Condition="Exists(...)" on the DLL would
+       see "false" on a clean build (DLL not yet built) and silently drop the analyzer from the
+       package, even though BeforeTargets="Pack" later builds it. -->
+  <Target Name="BuildSourceGenBeforePack" BeforeTargets="Pack;GenerateNuspec;_GetPackageFiles" Condition="'$(NoBuild)' != 'true'">
+    <MSBuild Projects="..\SourceGen\SourceGen.csproj" Targets="Build" Properties="Configuration=$(Configuration)" Condition="!Exists('..\\SourceGen\\bin\\$(Configuration)\\netstandard2.0\\Dualis.SourceGen.dll')" />
+    <ItemGroup>
+      <None Include="..\SourceGen\bin\$(Configuration)\netstandard2.0\Dualis.SourceGen.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+      <None Include="..\SourceGen\bin\$(Configuration)\netstandard2.0\Dualis.SourceGen.xml" Pack="true" PackagePath="analyzers/dotnet/cs" Condition="Exists('..\\SourceGen\\bin\\$(Configuration)\\netstandard2.0\\Dualis.SourceGen.xml')" Visible="false" />
+    </ItemGroup>
   </Target>
 
   <!-- Include solution README, changelog and icon in the package root -->
